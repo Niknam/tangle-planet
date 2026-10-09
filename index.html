@@ -507,7 +507,8 @@ const Sound=(function(){
     try{ ctx=new AC(); }catch(_){ return; }
     const comp=ctx.createDynamicsCompressor();
     comp.threshold.value=-16; comp.knee.value=12; comp.ratio.value=4; comp.attack.value=0.003; comp.release.value=0.2;
-    master=ctx.createGain(); master.gain.value=0.85; master.connect(comp); comp.connect(ctx.destination);
+    const soft=ctx.createBiquadFilter(); soft.type="lowpass"; soft.frequency.value=7000; soft.Q.value=0.5;
+    master=ctx.createGain(); master.gain.value=0.85; master.connect(soft); soft.connect(comp); comp.connect(ctx.destination);
     const rev=ctx.createConvolver(); rev.buffer=makeIR(2.6,3.2);
     const revOut=ctx.createGain(); revOut.gain.value=0.5; rev.connect(revOut); revOut.connect(master);
     sfxBus=ctx.createGain(); sfxBus.gain.value=sfxOn?1:0; sfxBus.connect(master);
@@ -575,31 +576,28 @@ const Sound=(function(){
 
   // ----- effects -----
   function step(){ if(!ready()) return; const t=ctx.currentTime;
-    noise({t,dur:0.06,g:0.045,f:1600+Math.random()*800,q:1.4});
-    osc({f:125,f2:52,t,dur:0.07,g:0.06});
+    noise({t,dur:0.07,g:0.035,type:"lowpass",f:700+Math.random()*250,q:0.5});
+    osc({f:115,f2:50,t,dur:0.08,g:0.06,a:0.004});
   }
   function jump(pan=0,vol=1){ if(!ready()) return; const t=ctx.currentTime, d=out(pan);
     osc({type:"triangle",f:250,f2:760,t,dur:0.18,g:0.16*vol,a:0.012,dest:d});
-    osc({f:500,f2:1500,t:t+0.01,dur:0.14,g:0.045*vol,dest:d});
-    noise({t,dur:0.22,g:0.07*vol,f:520,f2:3400,q:0.9,a:0.03,dest:d});
+    osc({f:420,f2:1100,t:t+0.01,dur:0.14,g:0.03*vol,dest:d});
+    noise({t,dur:0.22,g:0.05*vol,f:420,f2:1800,q:0.9,a:0.03,dest:d});
   }
   function land(pan=0,vol=1){ if(!ready()) return; const t=ctx.currentTime, d=out(pan);
     osc({f:150,f2:48,t,dur:0.17,g:0.22*vol,a:0.002,dest:d});
     noise({t,dur:0.09,g:0.07*vol,type:"lowpass",f:1100,q:0.7,dest:d});
   }
   function crash(pan=0,vol=1,own=false){ if(!ready()) return; const t=ctx.currentTime, d=out(pan), k=own?1:0.75*vol;
-    noise({t,dur:own?0.95:0.6,g:0.42*k,type:"lowpass",f:6000,f2:160,q:0.8,a:0.002,dest:d});
-    osc({type:"sawtooth",f:420,f2:52,t,dur:own?0.7:0.5,g:0.15*k,lp:2600,lp2:260,dest:d});
-    osc({f:96,f2:30,t,dur:own?0.8:0.45,g:0.5*k,a:0.003,dest:d});
-    for(let i=0;i<7;i++){const tt=t+0.02+Math.random()*0.28;
-      osc({f:1500+Math.random()*2600,f2:900+Math.random()*900,t:tt,dur:0.1+Math.random()*0.18,g:0.035*k,dest:d});}
+    noise({t,dur:own?0.8:0.5,g:0.32*k,type:"lowpass",f:1600,f2:110,q:0.6,a:0.006,dest:d});
+    osc({f:105,f2:34,t,dur:own?0.75:0.45,g:0.5*k,a:0.005,dest:d});
+    osc({type:"triangle",f:320,f2:85,t,dur:own?0.6:0.4,g:0.12*k,a:0.005,lp:1100,dest:d});
   }
   function count(n){ if(!ready()) return; const t=ctx.currentTime;
     if(n>0){ osc({f:587.33,t,dur:0.34,g:0.2,a:0.004}); osc({type:"triangle",f:1174.66,t,dur:0.16,g:0.05}); }
     else{
-      [880,1108.73,1318.51,1760].forEach((f,i)=>osc({type:"triangle",f,t:t+i*0.025,dur:0.8,g:0.1,lp:6000}));
+      [880,1108.73,1318.51,1760].forEach((f,i)=>osc({type:"triangle",f,t:t+i*0.025,dur:0.8,g:0.08,lp:2800}));
       osc({f:440,t,dur:0.8,g:0.14});
-      noise({t,dur:0.6,g:0.05,type:"highpass",f:6500,a:0.01});
     }
   }
   function notes(list,{type="triangle",gap=0.11,dur=0.5,g=0.12,at=0}={}){
@@ -607,8 +605,7 @@ const Sound=(function(){
     list.forEach((m,i)=>{const tt=t+i*gap; osc({type,f:mtof(m),t:tt,dur,g,lp:5000}); osc({f:mtof(m+12),t:tt,dur:dur*0.6,g:g*0.28});});
   }
   function roundEnd(res){ if(!ready()) return; // 1 = you won, -1 = someone else, 0 = draw
-    if(res===1){ notes([69,73,76],{gap:0.1}); notes([81,85,88],{gap:0.012,dur:1.3,g:0.1,at:0.3});
-      noise({t:ctx.currentTime+0.32,dur:0.9,g:0.04,type:"highpass",f:7000,a:0.02}); }
+    if(res===1){ notes([69,73,76],{gap:0.1}); notes([81,85,88],{gap:0.012,dur:1.3,g:0.1,at:0.3}); }
     else if(res===-1) notes([76,72,69,64],{gap:0.15,dur:0.6,g:0.1});
     else notes([69,72,69],{gap:0.14,dur:0.5,g:0.1});
   }
@@ -616,18 +613,17 @@ const Sound=(function(){
     osc({f,t,dur,g,a:0.003}); osc({f:f*2,t,dur:dur*0.5,g:g*0.3,a:0.002}); osc({f:f*3.01,t,dur:dur*0.25,g:g*0.1,a:0.002}); }
   function sparkle(t0,n,spread,g){ const P=[84,86,88,91,93,96,98,100];
     for(let i=0;i<n;i++){ const t=t0+Math.random()*spread, f=mtof(P[(Math.random()*P.length)|0]), d=out((Math.random()*2-1)*0.7);
-      osc({f,t,dur:0.35,g,a:0.002,dest:d}); osc({f:f*2.01,t,dur:0.12,g:g*0.35,a:0.001,dest:d}); } }
+      osc({f,t,dur:0.4,g,a:0.004,dest:d}); } }
   function matchEnd(won){ if(!ready()) return; const t=ctx.currentTime+0.02;
     (won?[72,76,79,84]:[67,72,76,79]).forEach((m,i)=>bell(m,t+i*0.08,0.085,1.4));
     bell(won?88:84,t+0.34,0.065,2.2);
     sparkle(t+0.22,won?18:11,1.3,won?0.03:0.022);
-    noise({t:t+0.2,dur:1.5,g:0.022,type:"highpass",f:8000,a:0.3});
   }
   function tally(){ if(!ready()) return; const t=ctx.currentTime;
     [76,79,83,88].forEach((m,i)=>osc({type:"triangle",f:mtof(m),t:t+i*0.07,dur:0.16,g:0.05,lp:5000})); }
   function boost(pan=0,vol=1){ if(!ready()) return; const t=ctx.currentTime, d=out(pan);
-    noise({t,dur:0.5,g:0.2*vol,f:300,f2:5200,q:0.8,a:0.02,dest:d});
-    osc({type:"sawtooth",f:110,f2:460,t,dur:0.36,g:0.12*vol,lp:800,lp2:4200,dest:d});
+    noise({t,dur:0.5,g:0.16*vol,f:260,f2:2400,q:0.8,a:0.03,dest:d});
+    osc({type:"sawtooth",f:110,f2:420,t,dur:0.36,g:0.1*vol,lp:700,lp2:1800,dest:d});
     osc({f:85,f2:38,t,dur:0.26,g:0.38*vol,a:0.003,dest:d}); }
   function boostReady(){ if(!ready()) return; const t=ctx.currentTime;
     osc({type:"triangle",f:mtof(81),t,dur:0.16,g:0.09}); osc({type:"triangle",f:mtof(88),t:t+0.08,dur:0.32,g:0.09});
@@ -656,7 +652,6 @@ const Sound=(function(){
     if(drums){
       if(s===0||s===8||(s===10&&b%2===1)) kick(t);
       if(s===4||s===12) snare(t);
-      if(s%4===2) hat(t,0.016);
     }
   }
   function pad(t,ch){
@@ -678,12 +673,10 @@ const Sound=(function(){
     osc({type:"square",f,t,dur:0.16,g:g*0.22,a:0.004,lp:3400,lp2:600,dest:musicBus});
     osc({type:"triangle",f,t,dur:0.22,g:g*0.6,dest:delayIn});
   }
-  function kick(t){ osc({f:150,f2:42,t,dur:0.34,g:0.5,a:0.002,dest:musicBus}); noise({t,dur:0.02,g:0.05,type:"highpass",f:3000,dest:musicBus}); }
+  function kick(t){ osc({f:140,f2:42,t,dur:0.34,g:0.5,a:0.004,dest:musicBus}); }
   // soft, round backbeat: a little body tone plus a short, darkened brush of noise
-  function snare(t){ osc({type:"triangle",f:200,f2:150,t,dur:0.12,g:0.07,a:0.002,dest:musicBus});
-    noise({t,dur:0.14,g:0.04,type:"lowpass",f:2600,f2:900,q:0.5,a:0.002,dest:musicBus}); }
-  // quiet shaker on the off-beats, kept out of the sharp top end
-  function hat(t,g){ noise({t,dur:0.04,g,type:"bandpass",f:5200,q:0.9,a:0.004,dest:musicBus}); }
+  function snare(t){ osc({type:"triangle",f:185,f2:140,t,dur:0.12,g:0.06,a:0.004,dest:musicBus});
+    noise({t,dur:0.13,g:0.03,type:"lowpass",f:1500,f2:600,q:0.5,a:0.004,dest:musicBus}); }
 
   function applyMode(instant){ if(!ctx) return; const t=ctx.currentTime;
     musicBus.gain.cancelScheduledValues(t);
