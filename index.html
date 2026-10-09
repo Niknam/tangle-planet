@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" id="vpMeta" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#0c1124">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -24,7 +24,7 @@
   --panel:rgba(18,24,52,.9);
   --card-solid:#141a36;
   --line:rgba(166,174,216,.22);
-  --you:#ff6b4a;
+  --you:#45d1ff;
   --up:#7fe39a;
   --down:#ff9a8a;
   --font-display:"Lilita One","Arial Rounded MT Bold","Trebuchet MS",system-ui,sans-serif;
@@ -34,6 +34,10 @@
 }
 [hidden]{display:none!important}
 html,body{height:100%}
+html,body,#app,#app *{touch-action:manipulation}  /* no double-tap zoom anywhere */
+#stage,#charSel .card{touch-action:none}
+*{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+input{-webkit-user-select:text;user-select:text}
 body{margin:0;font-size:14px}
 body{background:var(--space);color:var(--ink);font-family:var(--font-body);overflow:hidden;
   -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent}
@@ -51,12 +55,24 @@ body{background:var(--space);color:var(--ink);font-family:var(--font-body);overf
 .chip.out{background:rgba(20,26,54,.5)}
 .chip.out .dot,.chip.out .cn,.chip.out b{opacity:.4}
 .chip{position:relative}
-.chip b{display:inline-block}
+.chip b{display:inline-block;text-align:center}
+.chip b.rolling{overflow:hidden;vertical-align:middle}
+.chip b .reel{display:block}
+.chip b .reel span{display:block}
 
-.chip .dot{width:14px;height:14px;border-radius:50%}
+.chip .dot{width:14px;height:14px;border-radius:50%;flex:none}
+.chip .cn{max-width:6.5em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.readyRow .rp{max-width:46%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#msgBig.one{max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tn{display:inline-block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom}
 .chip b{font-family:var(--font-display);font-weight:400;font-size:16px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 #menuBtnOld{pointer-events:auto;font:800 13px var(--font-body);color:var(--muted);background:var(--panel);border:1px solid var(--line);
   border-radius:999px;padding:6px 12px}
+#specTag{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 42px);max-width:calc(100% - 32px);
+  box-sizing:border-box;padding:8px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-weight:800;font-size:14px;color:var(--muted);pointer-events:none}
+#specTag b{font-weight:800}
+#msg.compact #msgBig,#msg.compact #msgSmall{display:none}
 #roundTag{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);text-align:center;
   font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);pointer-events:none}
 
@@ -90,11 +106,11 @@ h2{font-family:var(--font-display);font-weight:400;font-size:30px;line-height:1.
   background:transparent;color:var(--ink)}
 .seg button[aria-pressed="true"]{background:var(--ink);color:var(--space)}
 .btn{font:400 22px var(--font-display);letter-spacing:.02em;padding:14px 18px;border-radius:16px;border:0;
-  background:var(--you);color:#1d0d08;box-shadow:0 4px 0 #b8432b}
-.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #b8432b}
+  background:var(--you);color:#04212e;box-shadow:0 4px 0 #1b86ae}
+.btn:active{transform:translateY(2px);box-shadow:0 2px 0 #1b86ae}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none;font-size:18px}
-.btn.secondary{background:rgba(255,107,74,.13);color:var(--ink);border:2px solid var(--you);box-shadow:0 3px 0 rgba(184,67,43,.55);padding-block:12px}
-.btn.secondary:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(184,67,43,.55)}
+.btn.secondary{background:rgba(69,209,255,.12);color:var(--ink);border:2px solid var(--you);box-shadow:0 3px 0 rgba(27,134,174,.6);padding-block:12px}
+.btn.secondary:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(27,134,174,.6)}
 .btn.small{font-size:16px;padding:9px 16px;border-radius:12px}
 button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .row{display:flex;gap:8px}
@@ -240,7 +256,7 @@ input::placeholder{color:var(--muted);opacity:.6}
 .otp{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
 .otp input{height:78px;padding:0;text-align:center;font:700 36px var(--font-code);color:var(--ink);caret-color:var(--you);
   border-radius:16px;border:2px solid var(--line);background:rgba(243,240,255,.06)}
-.otp input:focus{outline:none;border-color:var(--you);background:rgba(255,107,74,.08)}
+.otp input:focus{outline:none;border-color:var(--you);background:rgba(69,209,255,.08)}
 .otp input.filled{border-color:rgba(243,240,255,.45)}
 .otp.busy input{opacity:.55}
 .joinRow{display:flex;gap:8px}
@@ -300,6 +316,7 @@ input::placeholder{color:var(--muted);opacity:.6}
     </div>
   </div>
   <div id="roundTag" hidden></div>
+  <div id="specTag" hidden></div>
   <div id="toast" role="status" aria-live="polite"></div>
 
   <div id="msg" hidden>
@@ -348,7 +365,7 @@ input::placeholder{color:var(--muted);opacity:.6}
 
   <section id="charSel" class="sheet" hidden>
     <div class="card">
-      <label class="field" id="nameField" hidden><span>Your name</span><input id="nick" maxlength="12" autocomplete="nickname" placeholder="Player" enterkeyhint="done"></label>
+      <label class="field" id="nameField" hidden><span>Your name</span><input id="nick" maxlength="10" autocomplete="nickname" placeholder="Player" enterkeyhint="done"></label>
       <div class="carousel">
         <button class="nav prev" id="chPrev" type="button" aria-label="Previous runner"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
         <div id="charTrack" class="track" aria-live="polite"><div id="charStrip" class="strip"></div></div>
@@ -359,7 +376,7 @@ input::placeholder{color:var(--muted);opacity:.6}
         <dt>Speed</dt><dd><span class="meter"><i id="mSpeed"></i></span></dd>
         <dt>Handling</dt><dd><span class="meter"><i id="mHand"></i></span></dd>
         <dt>Boost</dt><dd><span class="meter"><i id="mBoost"></i></span></dd>
-        <dt>Hover</dt><dd><span class="meter"><i id="mHover"></i></span></dd>
+        <dt>Flutter</dt><dd><span class="meter"><i id="mHover"></i></span></dd>
       </dl>
       <div class="readyRow" id="readyRow" hidden></div>
       <div class="oppRow" id="oppRow">
@@ -513,7 +530,14 @@ const Sound=(function(){
     return b;
   }
   function init(){
-    if(ctx){ if(ctx.state!=="running") ctx.resume().catch(()=>{}); if(!document.hidden&&master.gain.value<0.01) wake(); return; }
+    if(ctx){
+      // Back from another app: iOS can leave the old audio engine stuck or silent, so on the first
+      // tap after a real app switch we simply build a fresh one (we're inside a tap, so it may start).
+      if(needFresh&&!document.hidden){needFresh=false; const old=ctx; ctx=null; try{old.close();}catch(_){} init(); return;}
+      if(ctx.state!=="running") ctx.resume().catch(()=>{});
+      if(!document.hidden&&!asleep&&master.gain.value<0.01) wake();
+      return;
+    }
     const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
     try{ if(navigator.audioSession) navigator.audioSession.type="playback"; }catch(_){}
     try{ ctx=new AC(); }catch(_){ return; }
@@ -539,22 +563,26 @@ const Sound=(function(){
     const nd=noiseBuf.getChannelData(0); for(let i=0;i<nd.length;i++) nd[i]=Math.random()*2-1;
     if(ctx.state!=="running") ctx.resume().catch(()=>{});
     applyMode(true);
-    nextT=ctx.currentTime+0.1;
-    setInterval(schedule,25);
-    document.addEventListener("visibilitychange",()=>{ if(document.hidden) sleep(); else wake(); });
-    window.addEventListener("pagehide",sleep); window.addEventListener("pageshow",()=>{ if(!document.hidden) wake(); });
+    nextT=ctx.currentTime+0.1; asleep=false;
+    if(!wired){ wired=true;
+      setInterval(schedule,25);
+      document.addEventListener("visibilitychange",()=>{ if(document.hidden) sleep(); else wake(); });
+      window.addEventListener("pagehide",sleep); window.addEventListener("pageshow",()=>{ if(!document.hidden) wake(); });
+    }
   }
+  let wired=false, needFresh=false, hiddenAt=0;
   // Leaving the app: fade everything out quickly *before* pausing the audio engine, so no note,
   // echo or reverb tail is chopped off mid-sound (that cut is what made the odd thump on close).
   let sleepT=0, asleep=false;
   function sleep(){
-    if(!ctx||asleep) return; asleep=true;
+    if(!ctx||asleep) return; asleep=true; hiddenAt=performance.now();
     const t=ctx.currentTime, g=master.gain;
     g.cancelScheduledValues(t); g.setValueAtTime(g.value,t); g.linearRampToValueAtTime(0,t+0.05);
     clearTimeout(sleepT); sleepT=setTimeout(()=>{ if(asleep) ctx.suspend().catch(()=>{}); },140);
   }
   function wake(){
     if(!ctx) return; asleep=false; clearTimeout(sleepT);
+    if(hiddenAt&&performance.now()-hiddenAt>1200) needFresh=true; hiddenAt=0;
     if(ctx.state!=="running") ctx.resume().catch(()=>{});
     const t=ctx.currentTime, g=master.gain;
     g.cancelScheduledValues(t); g.setValueAtTime(0,t); g.linearRampToValueAtTime(0.85,t+0.4);
@@ -646,9 +674,9 @@ const Sound=(function(){
     const src=[o1,o2,lfo,vib,n]; src.forEach(x=>x.start(t));
     return {g,src};
   }
-  function hoverStop(h){ if(!h||!ctx) return; const t=ctx.currentTime, gg=h.g.gain;
+  function hoverStop(h){ if(!h) return; try{ const t=h.g.context.currentTime, gg=h.g.gain;
     gg.cancelScheduledValues(t); gg.setValueAtTime(Math.max(0.0001,gg.value),t); gg.exponentialRampToValueAtTime(0.0001,t+0.16);
-    h.src.forEach(x=>{try{x.stop(t+0.2);}catch(_){}}); }
+    h.src.forEach(x=>{try{x.stop(t+0.2);}catch(_){}}); }catch(_){} }
   function tally(){ if(!ready()) return; const t=ctx.currentTime;
     [76,79,83,88].forEach((m,i)=>osc({type:"triangle",f:mtof(m),t:t+i*0.07,dur:0.16,g:0.05,lp:5000})); }
   function boost(pan=0,vol=1){ if(!ready()) return; const t=ctx.currentTime, d=out(pan);
@@ -806,11 +834,11 @@ class Trail{
 // Same body, different stats. Each stat is 1–5 and every character sums to 9.
 const CHARS=[
   {id:"bolt",  name:"Bolt",  color:0xff6b4a, fart:5, smid:2, boost:3, hov:2, look:"fin",     tag:"Fastest feet on the planet. Corners are more of a suggestion."},
-  {id:"swoop", name:"Swoop", color:0x3ec5ff, fart:2, smid:5, boost:1, hov:4, look:"antenna", tag:"Turns on a dime and glides with ease."},
+  {id:"swoop", name:"Swoop", color:0x3ec5ff, fart:2, smid:5, boost:1, hov:4, look:"antenna", tag:"Turns on a dime and flutters with ease."},
   {id:"sparky",name:"Sparky",color:0xffcf3a, fart:2, smid:2, boost:5, hov:3, look:"spikes",  tag:"Boost is always almost ready."},
   {id:"scout", name:"Scout", color:0xc58bff, fart:3, smid:3, boost:3, hov:3, look:"cap",     tag:"A bit of everything. No weak spots."},
   {id:"flick", name:"Flick", color:0xff7ac8, fart:4, smid:4, boost:2, hov:2, look:"ears",    tag:"Quick and nimble, but rarely boosts."},
-  {id:"nimbus",name:"Nimbus",color:0xeef0ff, fart:1, smid:3, boost:3, hov:5, look:"puff",    tag:"Slow on the ground, but floats longer than anyone."},
+  {id:"nimbus",name:"Nimbus",color:0xeef0ff, fart:1, smid:3, boost:3, hov:5, look:"puff",    tag:"Slow on the ground, but flutters longer than anyone."},
 ];
 const BOOST_BASE=9;      // seconds to fill the boost meter at stat 3
 const BOOST_T=0.45;      // push duration
@@ -948,6 +976,7 @@ function tickFx(dt){
 }
 
 // ---------- Players ----------
+let tieSet=null; // player indices in a tiebreak round (null = normal round)
 let chipOrder=[], players=[], opponents=3, round=0, state="menu", timeScale=1, stateT=0;
 let selChar="scout"; try{const s=localStorage.getItem("klot-char"); if(CHARS.some(c=>c.id===s)) selChar=s;}catch(_){}
 const tmpA=new THREE.Vector3(), tmpB=new THREE.Vector3(), tmpC=new THREE.Vector3();
@@ -1050,6 +1079,7 @@ function joyActive(){
 stage.addEventListener("pointerdown",e=>{
   if(state!=="play"&&state!=="count") return;
   e.preventDefault();
+  if(isSpectator()){cycleSpec(); return;}
   ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY,t:performance.now(),moved:false,flick:false,air:false});
   if(airborne(meP())){hoverHeld=true; hoverPtr=e.pointerId; hoverUsed=false; ptrs.get(e.pointerId).air=true;}
   if(joyId===null){joyId=e.pointerId;joyX=e.clientX;joyY=e.clientY;joyDX=joyDY=0;}
@@ -1082,7 +1112,7 @@ stage.addEventListener("contextmenu",e=>e.preventDefault());
 const boostBar=$("boostBar"), boostLbl=$("boostLbl");
 window.addEventListener("keydown",e=>{
   if(state==="select"&&(e.code==="ArrowLeft"||e.code==="ArrowRight")){shiftChar(e.code==="ArrowLeft"?-1:1);return;}
-  if(e.code==="Space"){e.preventDefault(); if(e.repeat) return; if(airborne(meP())){hoverHeld=true; hoverUsed=false;} else tryJump(); return;}
+  if(e.code==="Space"){e.preventDefault(); if(e.repeat) return; if(isSpectator()){cycleSpec(); return;} if(airborne(meP())){hoverHeld=true; hoverUsed=false;} else tryJump(); return;}
   if((e.code==="KeyB"||e.code==="ShiftLeft"||e.code==="ShiftRight")&&!e.repeat&&state==="play"){pressBoost();return;}
   keys.add(e.code);
 });
@@ -1208,7 +1238,7 @@ function hoverSounds(){
 function onLand(pl){ hostFx("l",pl); if(pl.human) Sound.land(0,1); }
 function onCrash(pl){ if(pl.human) Sound.crash(0,1,true); else {const s=spatial(pl); Sound.crash(s.pan,s.vol,false);} }
 function simStep(dt){
-  if(state==="count"){stateT-=dt; if(stateT<=0){state="play";if(Net.role==="host")broadcast({t:"go"});Sound.count(0);Sound.setMode("play");showMsg("Go!","");setTimeout(()=>{const m=meP();if(state==="play"&&m&&m.alive)hideMsg();},550);} return;}
+  if(state==="count"){stateT-=dt; if(stateT<=0){state="play";if(Net.role==="host")broadcast({t:"go"});Sound.count(0);Sound.setMode("play");showMsg("Go!","");setTimeout(afterGo,550);} return;}
   if(state!=="play") return;
   const alive=players.filter(p=>p.alive);
   for(const pl of alive) if(!pl.remote) stepPlayer(pl,dt);
@@ -1235,6 +1265,11 @@ function simStep(dt){
   }
 }
 function bump(A,B){tmpC.copy(A.p).multiplyScalar(R+A.y+HP/2).sub(tmpB.copy(B.p).multiplyScalar(R+B.y+HP/2)); return tmpC.length()<PR*2.2;}
+function afterGo(){
+  const m=meP(); if(state!=="play"||!m) return;
+  if(m.alive) hideMsg();
+  else if(m.sit){showMsg("Tiebreaker","You're sitting this one out"); if(!Net.role) ffBtn.hidden=false;}
+}
 function placeText(r){return ["","1st","2nd","3rd","4th"][r]+" place";}
 const pointsFor=r=>r===1?4:r===2?2:1;
 
@@ -1263,7 +1298,7 @@ function applyChar(){
   charSel.querySelector(".card").style.setProperty("--c",hexc(ch.color));
   [...charDots.children].forEach((d,k)=>d.classList.toggle("on",k===charIdx));
   $("mSpeed").style.width=ch.fart*20+"%"; $("mHand").style.width=ch.smid*20+"%"; $("mBoost").style.width=ch.boost*20+"%"; $("mHover").style.width=ch.hov*20+"%";
-  charTrack.setAttribute("aria-label",`${ch.name}: speed ${ch.fart}, handling ${ch.smid}, boost ${ch.boost}, hover ${ch.hov} of 5`);
+  charTrack.setAttribute("aria-label",`${ch.name}: speed ${ch.fart}, handling ${ch.smid}, boost ${ch.boost}, flutter ${ch.hov} of 5`);
 }
 function shiftChar(dir){
   settleSlide(); void charStrip.offsetWidth;
@@ -1287,18 +1322,20 @@ function openCharSel(){
   if(setup) renderReady();
   requestAnimationFrame(()=>requestAnimationFrame(applyChar));
 }
-charTrack.addEventListener("pointerdown",e=>{
+const swipeArea=charSel.querySelector(".card");
+swipeArea.addEventListener("pointerdown",e=>{
+  if(drag||e.target.closest("button,input,label,.row,.oppRow,.readyRow")) return;
   const base=settleSlide(); setStripX(base,false);
   drag={id:e.pointerId,x:e.clientX,t:performance.now(),base,dx:0};
-  try{charTrack.setPointerCapture(e.pointerId);}catch(_){}
+  try{swipeArea.setPointerCapture(e.pointerId);}catch(_){}
 });
-charTrack.addEventListener("pointermove",e=>{if(!drag||e.pointerId!==drag.id) return; drag.dx=e.clientX-drag.x; setStripX(drag.base+drag.dx,false);});
+swipeArea.addEventListener("pointermove",e=>{if(!drag||e.pointerId!==drag.id) return; drag.dx=e.clientX-drag.x; setStripX(drag.base+drag.dx,false);});
 function endDrag(e){
   if(!drag||e.pointerId!==drag.id) return;
   const w=charTrack.clientWidth, v=drag.dx/Math.max(1,performance.now()-drag.t), tot=drag.base+drag.dx; drag=null;
   if(Math.abs(tot)>w*0.18||(Math.abs(v)>0.4&&Math.abs(tot)>12)) shiftChar(tot<0?1:-1); else setStripX(0,true);
 }
-charTrack.addEventListener("pointerup",endDrag); charTrack.addEventListener("pointercancel",endDrag);
+swipeArea.addEventListener("pointerup",endDrag); swipeArea.addEventListener("pointercancel",endDrag);
 charTrack.addEventListener("dragstart",e=>e.preventDefault());
 $("chPrev").onclick=()=>shiftChar(-1);
 $("chNext").onclick=()=>shiftChar(1);
@@ -1308,7 +1345,7 @@ function startMatch(){
   beginMatch([{ch:mine,kind:"local"},...others.map(ch=>({ch,kind:"bot"}))]);
 }
 function beginMatch(list){
-  makePlayers(list); round=0; chipOrder=[...players]; roundScored=true;
+  makePlayers(list); round=0; chipOrder=[...players]; roundScored=true; tieSet=null;
   const me=meP(); $("app").style.setProperty("--me",hexc(me?me.color:CHARS[3].color));
   try{navigator.wakeLock&&navigator.wakeLock.request("screen").catch(()=>{});}catch(_){}
   hideSheets(); $("menuNote").hidden=true; hud.hidden=false; roundTag.hidden=false;
@@ -1316,7 +1353,7 @@ function beginMatch(list){
   if(Net.role==="client"){state="wait"; showMsg("Get ready","");} else startRound();
 }
 function startRound(){
-  round++; roundScored=false; grid.clear(); timeScale=1; hud.hidden=false; roundTag.hidden=false; ffBtn.hidden=true; panel.hidden=true; celeb=null; stopRain();
+  round++; roundScored=false; specT=null; grid.clear(); timeScale=1; hud.hidden=false; roundTag.hidden=false; ffBtn.hidden=true; panel.hidden=true; celeb=null; stopRain();
   msgBig.classList.remove("cheer"); msgBig.style.color="";
   const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random()*6.28,Math.random()*6.28,Math.random()*6.28));
   const dirs=spawnDirs(players.length);
@@ -1326,24 +1363,26 @@ function startRound(){
     pl.h.copy(tmpA).addScaledVector(pl.p,-tmpA.dot(pl.p)).normalize();
     pl.y=0;pl.jt=-1;pl.cool=0;pl.acc=0;pl.alive=true;pl.rank=0;pl.turnCmd=0;pl.think=Math.random()*0.1;pl.jumpBuf=0;pl.stride=0;pl.stepN=0;
     pl.boost=1;pl.bt=-1;pl.netHas=false;pl.hovering=false;pl.botHover=false;pl.hoverLeft=0;pl.sb=[];pl.pq=[];pl.log=[];pl.dieT=null;pl.forceOut=!!pl.left;
-    pl.trail.reset(); pl.fig.visible=true; if(!pl.remote) dropPoint(pl);
+    pl.trail.reset(); pl.fig.visible=true; pl.sit=false;
+    if(tieSet&&!tieSet.includes(pl.i)){pl.sit=true; pl.alive=false; pl.fig.visible=false;}  // sitting out the tiebreaker
+    else if(!pl.remote) dropPoint(pl);
   });
   const me0=meP()||players[0]; camC.copy(me0.p); camU.copy(me0.h); hoverHeld=false; hoverPtr=null;
   state="count"; stateT=3; Sound.setMode("count"); renderChips();
-  roundTag.textContent=`Round ${round} · first to ${POINTS_TO_WIN}`;
+  roundTag.textContent=tieSet?"Tiebreaker round":`Round ${round} · first to ${POINTS_TO_WIN}`;
   if(Net.role==="host"){Net.tpSent=new Map(); Net.sendAcc=1;
-    broadcast({t:"round",round,pl:players.map(p=>[...p.p.toArray(),...p.h.toArray()].map(r3))});}
+    broadcast({t:"round",round,tb:tieSet,pl:players.map(p=>[...p.p.toArray(),...p.h.toArray()].map(r3))});}
 }
 let celeb=null;
 function endRound(){
   state="ending"; timeScale=1; ffBtn.hidden=true;
   const winners=players.filter(p=>p.rank===1);
   assignPos("prevPos");
-  for(const pl of players) pl.score+=pointsFor(pl.rank);
+  for(const pl of players) if(!pl.sit) pl.score+=pointsFor(pl.rank);
   assignPos("pos"); chipOrder=standingOrder(players); roundScored=true;
   if(Net.role==="host") broadcast({t:"end",T:performance.now(),r:players.map(p=>p.rank),s:players.map(p=>p.score),pp:players.map(p=>p.prevPos),po:players.map(p=>p.pos)});
   const w=winners.length===1?winners[0]:null; stateT=1.6;
-  showMsg(w?(w.human?"You win the round!":`${w.name} wins the round`):"Draw","");
+  roundWinMsg(w);
   Sound.setMode("count"); Sound.roundEnd(winners.length!==1?0:winners[0].human?1:-1);
   renderChips();
 }
@@ -1367,20 +1406,25 @@ function assignPos(key){const o=standingOrder(players);
 const CROWN=`<svg class="crown" viewBox="0 0 24 16" aria-hidden="true"><path d="M2 14h20l-1.6-10-5.2 4.6L12 1.5 8.8 8.6 3.6 4z" fill="#ffd23f"/></svg>`;
 function showPanel(){
   hideMsg(); clearTimeout(panelTimer); celeb=null;
-  const top=Math.max(...players.map(p=>p.score));
-  const leaders=players.filter(p=>p.score===top);
+  const inPlay=players.filter(p=>!p.left).length?players.filter(p=>!p.left):players;
+  const top=Math.max(...inPlay.map(p=>p.score));
+  const leaders=inPlay.filter(p=>p.score===top);
   const matchOver=top>=POINTS_TO_WIN && leaders.length===1;
+  const tie=top>=POINTS_TO_WIN && leaders.length>1;
+  tieSet=tie?leaders.map(p=>p.i):null;
   const winners=players.filter(p=>p.rank===1);
-  $("panelLabel").textContent=matchOver?"Match over":`Round ${round}`;
+  $("panelLabel").textContent=matchOver?"Match over":tie?`Tied at ${top} points`:`Round ${round}`;
   const title=$("panelTitle");
-  title.textContent=matchOver?(leaders[0].human?"You win the match!":`${leaders[0].name} wins the match!`)
-    :(winners.length!==1?"Draw":winners[0].human?"You won the round":`${winners[0].name} won the round`);
+  const nm=pl=>`<span class="tn">${esc(pl.name)}</span>`;
+  title.innerHTML=matchOver?(leaders[0].human?"You win the match!":`${nm(leaders[0])} wins the match!`)
+    :tie?"Tiebreaker!"
+    :(winners.length!==1?"Draw":winners[0].human?"You won the round":`${nm(winners[0])} won the round`);
   title.classList.toggle("champTitle",matchOver); title.style.color=matchOver?hexc(leaders[0].color):"";
   const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
   // rows in overall standing; totals start at the old value and count up
   const ol=$("results"); ol.innerHTML="";
   for(const pl of standingOrder(players)){
-    const gain=pointsFor(pl.rank), li=document.createElement("li"), d=pl.prevPos-pl.pos;
+    const gain=pl.sit?0:pointsFor(pl.rank), li=document.createElement("li"), d=pl.prevPos-pl.pos;
     if(pl.human) li.classList.add("me");
     const champ=matchOver&&pl===leaders[0];
     const mv=round>1&&d>0?`<span class="move up">▲${d}</span>`:round>1&&d<0?`<span class="move down">▼${-d}</span>`:"";
@@ -1410,7 +1454,7 @@ function showPanel(){
     $("toMenu").onclick=()=>{leaveOnline();toMenu();}; $("again").onclick=()=>{Sound.click(); openLobby(); hostSendLobby();};
   } else {
     pb.innerHTML=matchOver?'<button class="btn ghost" id="toMenu" type="button">Home</button><button class="btn" id="again" type="button">New match</button>'
-      :'<button class="btn" id="nextBtn" type="button">Next round</button>';
+      :`<button class="btn" id="nextBtn" type="button">${tie?"Start tiebreaker":"Next round"}</button>`;
     if(matchOver){$("toMenu").onclick=toMenu;$("again").onclick=()=>{Sound.click();openCharSel();};}
     else $("nextBtn").onclick=()=>{Sound.click();startRound();};
   }
@@ -1485,7 +1529,7 @@ function renderChips(){
     el.querySelector(".cn").textContent=pl.name;
     const to=chipScore(pl), b=el.querySelector("b");
     if(el._v===undefined||to<el._v||reduce||hud.hidden){b.textContent=to;}
-    else if(to>el._v) chipFlip(b,to);
+    else if(to>el._v) chipFlip(b,to,el._v);
     el._v=to;
     chips.appendChild(el);
   }
@@ -1493,13 +1537,32 @@ function renderChips(){
     const c=el.getBoundingClientRect(), dx=a.left-c.left, dy=a.top-c.top;
     if(Math.abs(dx)>1||Math.abs(dy)>1) el.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:"none"}],{duration:520,easing:"cubic-bezier(.2,.8,.2,1)"});}
 }
-function chipFlip(b,to){
-  const out=b.animate([{transform:"perspective(120px) rotateX(0)"},{transform:"perspective(120px) rotateX(90deg)"}],{duration:150,easing:"ease-in",fill:"forwards"});
-  out.onfinish=()=>{b.textContent=to; out.cancel();
-    b.animate([{transform:"perspective(120px) rotateX(-90deg)"},{transform:"perspective(120px) rotateX(0)"}],{duration:260,easing:"cubic-bezier(.2,.8,.3,1.25)"});};
+function chipFlip(b,to,fromV){
+  // rolling counter: the old number spins up through the steps to the new one
+  const tok=b._tok=(b._tok||0)+1;
+  const from=fromV||0, n=Math.min(Math.max(1,to-from),8), seq=[];
+  for(let k=0;k<=n;k++) seq.push(Math.round(from+(to-from)*k/n));
+  const h=b.getBoundingClientRect().height||20;
+  b.style.height=h+"px"; b.style.lineHeight=h+"px"; b.style.minWidth=String(to).length+"ch"; b.classList.add("rolling");
+  b.innerHTML='<span class="reel">'+seq.map(v=>`<span>${v}</span>`).join("")+"</span>";
+  const reel=b.firstChild;
+  const a=reel.animate([{transform:"translateY(0)"},{transform:`translateY(${-h*(seq.length-1)}px)`}],
+    {duration:700+n*70,delay:120,easing:"cubic-bezier(.3,.9,.25,1)",fill:"forwards"});
+  a.onfinish=()=>{if(b._tok!==tok) return; b.textContent=to; b.classList.remove("rolling"); b.style.height=b.style.lineHeight=b.style.minWidth="";
+    b.animate([{color:"#7fe39a",transform:"scale(1.25)"},{color:"#f3f0ff",transform:"scale(1)"}],{duration:500,easing:"ease-out"});};
 }
-function showMsg(big,small){msg.hidden=false;msgBig.textContent=big;msgSmall.textContent=small;msgSmall.hidden=!small;}
-function hideMsg(){msg.hidden=true;ffBtn.hidden=true;msgBig.classList.remove("cheer");msgBig.style.color="";}
+function showMsg(big,small){msg.hidden=false;msg.classList.remove("compact");msgBig.textContent=big;msgSmall.textContent=small;msgSmall.hidden=!small;}
+function hideMsg(){msg.hidden=true;msg.classList.remove("compact");ffBtn.hidden=true;msgBig.classList.remove("cheer","one");msgBig.style.color="";msgBig.style.fontSize="";}
+function roundWinMsg(w){
+  if(!w){showMsg("Draw",""); return;}
+  if(w.human){showMsg("You win the round!",""); return;}
+  showMsg(w.name,"wins the round"); msgBig.classList.add("one"); msgBig.style.color=hexc(w.color); fitLine(msgBig,72,24);
+}
+// shrink a one-line headline until it fits (wide letters, emoji…); an ellipsis is only the last resort
+function fitLine(el,max,min){
+  let fs=Math.min(max,Math.max(min,window.innerWidth*0.12)); el.style.fontSize=fs+"px";
+  while(el.scrollWidth>el.clientWidth+1&&fs>min){fs-=2; el.style.fontSize=fs+"px";}
+}
 
 // menu wiring
 document.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{
@@ -1575,6 +1638,21 @@ syncSoundUI();
   vv.addEventListener("resize",upd); vv.addEventListener("scroll",upd);
 })();
 ["pointerdown","touchend","click","keydown"].forEach(ev=>document.addEventListener(ev,()=>Sound.init(),true));
+// Block every kind of page zoom (pinch, double-tap) and text selection: in the middle of a match it
+// would freeze the controls. Safari ignores the viewport flags for pinch, so stop the gestures too.
+(function(){
+  const stop=e=>{if(e.cancelable) e.preventDefault();};
+  ["gesturestart","gesturechange","gestureend"].forEach(ev=>document.addEventListener(ev,stop,{passive:false}));
+  document.addEventListener("touchmove",e=>{if(e.touches&&e.touches.length>1) stop(e);},{passive:false});
+  document.addEventListener("dblclick",stop,{passive:false});
+  let lastEnd=0;
+  document.addEventListener("touchend",e=>{const now=e.timeStamp||performance.now();
+    if(now-lastEnd<350&&!(e.target.closest&&e.target.closest("input,button,a"))) stop(e); lastEnd=now;},{passive:false});
+  document.addEventListener("selectstart",e=>{if(!(e.target.closest&&e.target.closest("input"))) stop(e);});
+  // if a zoom slips through anyway, snap back to 1:1
+  const vv=window.visualViewport, meta=$("vpMeta");
+  if(vv&&meta) vv.addEventListener("resize",()=>{ if(vv.scale>1.01){const c=meta.content; meta.content=c+",x=1"; setTimeout(()=>meta.content=c,30);} });
+})();
 Sound.init();
 
 // ---------- Online play (PeerJS / WebRTC, host-authoritative) ----------
@@ -1584,7 +1662,10 @@ const Net={uconns:new Map(),uConn:null,seq:0,inQ:0,snaps:[],off:null,evq:[],phas
   sendAcc:0,tpSent:new Map(),mySent:0,timer:0};
 const CODE_CH="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const cleanName=s=>(String(s||"").replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g,"").trim().slice(0,12))||"Player";
+const cut10=s=>{ if(typeof Intl!=="undefined"&&Intl.Segmenter){let out="",n=0;
+    for(const g of new Intl.Segmenter(undefined,{granularity:"grapheme"}).segment(s)){if(n>=10||(out+g.segment).length>16) break; out+=g.segment; n++;} return out;}
+  return Array.from(s).slice(0,10).join(""); };
+const cleanName=s=>cut10(String(s||"").replace(/[\u0000-\u001f\u007f-\u009f\u200b\u200c\u200e\u200f\u202a-\u202e\u2066-\u2069]/g,"").trim()).trim()||"Player";
 const charById=id=>CHARS.find(c=>c.id===id)||CHARS[3];
 // Direct connection first; ExpressTURN relays the traffic when a VPN or strict network blocks it.
 const ICE={iceServers:[
@@ -1598,20 +1679,20 @@ const r3=v=>Math.round(v*1000)/1000, r2=v=>Math.round(v*100)/100;
 let mode="cpu", pendingCode="";
 try{const m=location.hash.match(/^#(\d{4})$/); if(m) pendingCode=m[1];}catch(_){}
 
-function savedName(){try{return (localStorage.getItem("tp-name")||"").slice(0,12);}catch(_){return "";}}
-function myName(){const raw=$("nick").value.trim(); if(raw){try{localStorage.setItem("tp-name",raw.slice(0,12));}catch(_){}}
+function savedName(){try{return (localStorage.getItem("tp-name")||"").slice(0,10);}catch(_){return "";}}
+function myName(){const raw=$("nick").value.trim(); if(raw){try{localStorage.setItem("tp-name",raw.slice(0,10));}catch(_){}}
   const me=Net.roster.find(r=>r.id===Net.myId); return raw?cleanName(raw):(me?me.name:"Player");}
 const defaultName=i=>"Player "+(i+1);
 try{$("nick").value=localStorage.getItem("tp-name")||"";}catch(_){}
 
 // duplicate characters get a clearly different shade
 function variantColor(base,k){
+  // a second/third/fourth pick of the same runner gets a darker or lighter shade of the same colour
   if(!k) return base;
-  const c=new THREE.Color(base), hsl={}; c.getHSL(hsl);
-  if(k===1) c.setHSL(hsl.h,Math.min(1,hsl.s+0.1),hsl.l*0.55);
-  else if(k===2) c.setHSL((hsl.h+0.1)%1,Math.max(hsl.s,0.6),0.62);
-  else c.setHSL((hsl.h+0.9)%1,Math.max(hsl.s,0.6),0.42);
-  return c.getHex();
+  const c=new THREE.Color(base), h={}; c.getHSL(h);
+  const shades=h.l>0.8 ? [[0.08,0.66],[0.06,0.48],[0.1,0.82]]                       // white-ish: greys
+                       : [[h.s,h.l*0.66],[h.s*0.85,Math.min(0.86,h.l+(1-h.l)*0.5)],[h.s*0.9,h.l*0.45]];
+  const [sat,l]=shades[(k-1)%3]; c.setHSL(h.h,sat,l); return c.getHex();
 }
 function rosterColors(list){const seen={}; return list.map(r=>{const k=seen[r.char]||0; seen[r.char]=k+1; return variantColor(charById(r.char).color,k);});}
 
@@ -1903,8 +1984,7 @@ function clientData(d){
     case "match": Net.phase="match"; if(Array.isArray(d.players)) beginMatch(d.players.slice(0,4).map(x=>({ch:charById(x.char),name:cleanName(x.name),
         color:Number.isFinite(x.color)?x.color:charById(x.char).color,peer:String(x.id),kind:x.id===Net.myId?"local":"remote"}))); break;
     case "round": clientRound(d); break;
-    case "go": if(state==="count"){state="play"; Sound.count(0); Sound.setMode("play"); showMsg("Go!","");
-        setTimeout(()=>{const m=meP(); if(state==="play"&&m&&m.alive) hideMsg();},550);} break;
+    case "go": if(state==="count"){state="play"; Sound.count(0); Sound.setMode("play"); showMsg("Go!",""); setTimeout(afterGo,550);} break;
     case "s": clientState(d); break;
     case "tp": if(d.r===round&&Array.isArray(d.d)) for(const a of d.d){ if(!Array.isArray(a)) continue; const pl=players[a[0]]; if(!pl||pl.human) continue;
         for(let q=2,idx=a[1]|0;q+3<a.length;q+=4,idx++) pl.pq.push([idx,+a[q],+a[q+1],+a[q+2],+a[q+3]]);} break;
@@ -1921,16 +2001,18 @@ function clientData(d){
 }
 function clientRound(d){
   Net.rrDeadline=0; Net.evq=[]; Net.mySent=0; Net.sendAcc=1;
-  round=d.round|0; roundScored=false; panel.hidden=true; stopRain(); celeb=null; hideMsg(); grid.clear();
+  round=d.round|0; roundScored=false; specT=null; panel.hidden=true; stopRain(); celeb=null; hideMsg(); grid.clear();
   hud.hidden=false; roundTag.hidden=false;
   players.forEach((pl,i)=>{const a=d.pl&&d.pl[i]; if(!a) return;
     pl.p.set(a[0],a[1],a[2]).normalize(); pl.h.set(a[3],a[4],a[5]).normalize(); pl.sb=[]; pl.pq=[]; pl.log=[];
     pl.y=0; pl.jt=-1; pl.bt=-1; pl.cool=0; pl.acc=0; pl.jumpBuf=0; pl.hovering=false; pl.hoverLeft=0; pl.asT=0; pl.asCmd=0; pl.boost=1; pl.alive=true; pl.rank=0; pl.stride=0; pl.stepN=0;
-    pl.trail.reset(); pl.fig.visible=true;});
-  const m=meP(); if(m){camC.copy(m.p); camU.copy(m.h); dropPoint(m);}
+    pl.trail.reset(); pl.fig.visible=true; pl.sit=false;
+    if(Array.isArray(d.tb)&&!d.tb.includes(i)){pl.sit=true; pl.alive=false; pl.fig.visible=false;}});
+  tieSet=Array.isArray(d.tb)?d.tb.slice():null;
+  const m=meP(); if(m){camC.copy(m.p); camU.copy(m.h); if(!m.sit) dropPoint(m);}
   joyAng=null; hoverHeld=false; hoverPtr=null;
   state="count"; stateT=3; Sound.setMode("count"); renderChips();
-  roundTag.textContent=`Round ${round} · first to ${POINTS_TO_WIN}`;
+  roundTag.textContent=tieSet?"Tiebreaker round":`Round ${round} · first to ${POINTS_TO_WIN}`;
 }
 // ----- shared online helpers -----
 // Every device runs its own runner itself (no waiting on the network for steering or jumps)
@@ -1999,7 +2081,7 @@ function clientEnd(d){
   chipOrder=standingOrder(players); roundScored=true;
   state="ending"; timeScale=1; ffBtn.hidden=true;
   const winners=players.filter(p=>p.rank===1), w=winners.length===1?winners[0]:null; stateT=1.6;
-  showMsg(w?(w.human?"You win the round!":`${w.name} wins the round`):"Draw","");
+  roundWinMsg(w);
   Sound.setMode("count"); Sound.roundEnd(winners.length!==1?0:winners[0].human?1:-1);
   renderChips();
 }
@@ -2056,13 +2138,39 @@ if(pendingCode){mode="online"; setTimeout(()=>{Sound.init(); openOnline();},0);}
 const camC=new THREE.Vector3(0,0,1), camU=new THREE.Vector3(0,1,0), oldC=new THREE.Vector3(), qq=new THREE.Quaternion();
 const look=new THREE.Vector3(), camDir=new THREE.Vector3();
 const BASE_FOV=42; let camZoom=1;
+// ---------- Spectating (knocked out, or sitting out a tiebreaker) ----------
+// Starts on whoever is closest to where the camera already is; tap anywhere (or Space) to switch;
+// if the one you watch crashes, it moves on by itself.
+let specT=null, specSince=0, specKey="";
+function isSpectator(){const m=meP(); if(!m) return false;
+  if(m.sit) return state==="count"||state==="play"; return !m.alive&&state==="play";}
+function specPool(){return players.filter(p=>p.alive&&!p.human);}
+function specTarget(){
+  const pool=specPool(); if(!pool.length) return null;
+  if(!specT||!pool.includes(specT)) specT=pool.reduce((a,b)=>a.p.dot(camC)>=b.p.dot(camC)?a:b);
+  return specT;
+}
+function cycleSpec(){const pool=specPool(); if(pool.length<2) return; specTarget();
+  specT=pool[(pool.indexOf(specT)+1)%pool.length]; Sound.click();}
+function syncSpec(){
+  const on=isSpectator(), tag=$("specTag");
+  if(!on){ if(!tag.hidden) tag.hidden=true; specSince=0; specKey=""; return; }
+  const now=performance.now(); if(!specSince) specSince=now;
+  // after a moment, fold the big "You're out" text away so the view is clear (fast-forward stays)
+  if(state==="play"&&now-specSince>1800&&!msg.hidden) msg.classList.add("compact");
+  const t=specTarget(), n=specPool().length;
+  const key=t?t.i+"|"+n+"|"+t.name:"";
+  if(key!==specKey){specKey=key;
+    tag.innerHTML=t?`Watching <b style="color:${hexc(t.color)}">${esc(t.name)}</b>`:"";}
+  if(tag.hidden!==!t) tag.hidden=!t;
+}
 function updateCamera(dt){
   let target=null;
   if(celeb) target=celeb.pl;
   else if(players.length && !["menu","select","online","lobby"].includes(state)){
     const me=meP();
-    if(me&&(me.alive||state==="count")) target=me;
-    else target=players.find(p=>p.alive)||null;
+    if(me&&(me.alive||(state==="count"&&!me.sit))) target=me;
+    else target=specTarget()||players.find(p=>p.alive)||null;
   }
   if(target){
     oldC.copy(camC); camC.lerp(target.p,1-Math.exp(-6*dt)).normalize();
@@ -2145,7 +2253,7 @@ function frame(now){
   clientTick(dt); proxyFrame(dt); hostTick(dt); hostRoundTick();
   if(state==="panel"&&Net.rrDeadline&&$("rrStatus")){Net._rrT=(Net._rrT||0)+dt; if(Net._rrT>0.25){Net._rrT=0; panelReady();}}
   for(const pl of players) pl.trail.flush();
-  tickCeleb(dt); hoverSounds(); syncFigures(); tickFx(dt); updateCamera(dt); syncBoostUI(); tickRain(dt);
+  tickCeleb(dt); hoverSounds(); syncSpec(); syncFigures(); tickFx(dt); updateCamera(dt); syncBoostUI(); tickRain(dt);
   renderer.render(scene,camera);
   requestAnimationFrame(frame);
 }
