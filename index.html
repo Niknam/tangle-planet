@@ -47,8 +47,12 @@ body{background:var(--space);color:var(--ink);font-family:var(--font-body);overf
   display:flex;gap:8px;align-items:flex-start;pointer-events:none}
 #chips{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}
 .chip{display:flex;align-items:center;gap:6px;padding:4px 10px 4px 6px;border-radius:999px;background:var(--panel);
-  border:1px solid var(--line);font-weight:800;font-size:14px;transition:opacity .2s}
-.chip.out{opacity:.4}
+  border:1px solid var(--line);font-weight:800;font-size:14px;transition:background .2s}
+.chip.out{background:rgba(20,26,54,.5)}
+.chip.out .dot,.chip.out .cn,.chip.out b{opacity:.4}
+.chip{position:relative}
+.chip b{display:inline-block}
+
 .chip .dot{width:14px;height:14px;border-radius:50%}
 .chip b{font-family:var(--font-display);font-weight:400;font-size:16px;font-variant-numeric:tabular-nums;letter-spacing:.02em}
 #menuBtnOld{pointer-events:auto;font:800 13px var(--font-body);color:var(--muted);background:var(--panel);border:1px solid var(--line);
@@ -106,7 +110,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;grid-column:3/6}
 .bar i{display:block;height:100%;transition:width .55s ease}
 #results li.me{border-color:var(--me,var(--you))}
-#results .nm{min-width:0;white-space:nowrap}
+#results .nm{min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .move{font-size:11px;margin-left:6px;font-variant-numeric:tabular-nums}
 .move.up{color:var(--up)} .move.down{color:var(--down)}
 .chip.me{border-color:var(--me,var(--you))}
@@ -115,16 +119,22 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
   font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
   opacity:0;transform:translate(-50%,-10px);transition:opacity .25s,transform .25s cubic-bezier(.2,.8,.2,1)}
 #toast.on{opacity:1;transform:translate(-50%,0)}
-/* match winner: gold frame, a slow glow and a light sweep, crown pops in once the totals have counted up */
-#results li.win{position:relative;border-color:transparent;animation:winGlow 2.4s ease-in-out .9s infinite}
-@keyframes winGlow{50%{box-shadow:0 0 16px rgba(255,210,63,.3)}}
-/* gold frame with a bright glint that runs around it */
-#results li.win::after{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:2px;pointer-events:none;
-  background:linear-gradient(110deg,#e9b416 0%,#ffd23f 42%,#fffbe8 50%,#ffd23f 58%,#e9b416 100%);background-size:300% 100%;background-position:100% 0;
-  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
-  animation:winShine 2.4s ease-in-out .9s infinite}
-@keyframes winShine{0%{background-position:100% 0}55%,100%{background-position:0 0}}
-#results li.win .crown{display:inline-block;animation:crownPop .55s cubic-bezier(.2,1.8,.4,1) .9s both}
+/* match winner: dark amber row with a gold frame, crown and "Winner" tag; lights up once the totals have counted up */
+#results li.win{position:relative;overflow:hidden;border:2px solid #ffd23f;padding:7px 9px;color:#fff6dc;
+  background:linear-gradient(135deg,#4d3708 0%,#2c2008 100%);box-shadow:0 0 0 4px rgba(255,210,63,.16),0 8px 26px rgba(255,190,50,.28);
+  animation:winIn .6s cubic-bezier(.2,1.6,.4,1) both}
+@keyframes winIn{0%{transform:scale(.97)}45%{transform:scale(1.05)}100%{transform:none}}
+#results li.win .rk,#results li.win .tot{color:#ffd23f}
+#results li.win .plus{color:rgba(255,240,205,.72)}
+#results li.win .bar{background:rgba(255,240,205,.16)}
+#results li.win .move{display:none}
+.winTag{display:inline-block;margin-left:8px;padding:2px 7px;border-radius:999px;background:#ffd23f;color:#2a1a00;
+  font:800 10px var(--font-body);letter-spacing:.1em;text-transform:uppercase;vertical-align:2px}
+/* a faint sheen glides over the row now and then */
+#results li.win::after{content:"";position:absolute;inset:0;pointer-events:none;transform:translateX(-120%);
+  background:linear-gradient(105deg,transparent 30%,rgba(255,230,160,.16) 50%,transparent 70%);animation:winSheen 3.2s ease-in-out .5s infinite}
+@keyframes winSheen{0%{transform:translateX(-120%)}40%,100%{transform:translateX(120%)}}
+#results li.win .crown{display:inline-block;animation:crownPop .55s cubic-bezier(.2,1.8,.4,1) both}
 @keyframes crownPop{from{transform:scale(0) rotate(-25deg);opacity:0}}
 .tools{display:flex;gap:6px;pointer-events:auto;position:relative;z-index:6}
 #pause{z-index:7}
@@ -349,6 +359,7 @@ input::placeholder{color:var(--muted);opacity:.6}
         <dt>Speed</dt><dd><span class="meter"><i id="mSpeed"></i></span></dd>
         <dt>Handling</dt><dd><span class="meter"><i id="mHand"></i></span></dd>
         <dt>Boost</dt><dd><span class="meter"><i id="mBoost"></i></span></dd>
+        <dt>Hover</dt><dd><span class="meter"><i id="mHover"></i></span></dd>
       </dl>
       <div class="readyRow" id="readyRow" hidden></div>
       <div class="oppRow" id="oppRow">
@@ -457,14 +468,15 @@ input::placeholder{color:var(--muted);opacity:.6}
 (function(){
 "use strict";
 // ---------- Tuning ----------
-const R = 10;                       // globe radius
-const LAP = 8.2;                    // seconds per lap
-const SPEED = 2*Math.PI*R/LAP;
+const R0 = 10;                      // reference size: speed and camera distance are tuned for this
+const R = 8.8;                      // globe radius (a smaller, busier planet)
+const LAP = 8.2;                    // seconds per lap on the reference planet
+const SPEED = 2*Math.PI*R0/LAP;
 const TURN = 9.0;                   // rad/s max turn (U-turn ≈ 0.35 s)
 const TR = 0.30;                    // tube radius
 const PR = 0.22;                    // player body radius
 const HP = 1.05;                    // player height
-const JH = 1.65;                    // jump apex (feet height)
+const JH = 1.9;                     // jump apex (feet height)
 const JT = 0.36;                    // jump duration
 const SP = 0.25;                    // distance between trail points
 const GRACE = 8;                    // own newest points that can't hurt you
@@ -619,6 +631,24 @@ const Sound=(function(){
     bell(won?88:84,t+0.34,0.065,2.2);
     sparkle(t+0.22,won?18:11,1.3,won?0.03:0.022);
   }
+  function hoverStart(pan=0,vol=1){ if(!ready()) return null; const t=ctx.currentTime, d=out(pan);
+    const g=ctx.createGain(); g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.12*vol,t+0.07);
+    const lp=ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=1300; lp.Q.value=0.6;
+    const trem=ctx.createGain(); trem.gain.value=0.6;            // 18 Hz flutter, like little wings
+    const lfo=ctx.createOscillator(); lfo.frequency.value=18; const lfoG=ctx.createGain(); lfoG.gain.value=0.4; lfo.connect(lfoG); lfoG.connect(trem.gain);
+    const o1=ctx.createOscillator(); o1.type="triangle"; o1.frequency.setValueAtTime(240,t); o1.frequency.exponentialRampToValueAtTime(330,t+0.16);
+    const o2=ctx.createOscillator(); o2.type="sine"; o2.frequency.setValueAtTime(360,t); o2.frequency.exponentialRampToValueAtTime(495,t+0.16);
+    const vib=ctx.createOscillator(); vib.frequency.value=5; const vibG=ctx.createGain(); vibG.gain.value=7; vib.connect(vibG); vibG.connect(o1.frequency); vibG.connect(o2.frequency);
+    const n=ctx.createBufferSource(); n.buffer=noiseBuf; n.loop=true;
+    const nf=ctx.createBiquadFilter(); nf.type="bandpass"; nf.frequency.value=650; nf.Q.value=0.8; const ng=ctx.createGain(); ng.gain.value=0.45;
+    const o2g=ctx.createGain(); o2g.gain.value=0.5;
+    o1.connect(trem); o2.connect(o2g); o2g.connect(trem); n.connect(nf); nf.connect(ng); ng.connect(trem); trem.connect(lp); lp.connect(g); g.connect(d);
+    const src=[o1,o2,lfo,vib,n]; src.forEach(x=>x.start(t));
+    return {g,src};
+  }
+  function hoverStop(h){ if(!h||!ctx) return; const t=ctx.currentTime, gg=h.g.gain;
+    gg.cancelScheduledValues(t); gg.setValueAtTime(Math.max(0.0001,gg.value),t); gg.exponentialRampToValueAtTime(0.0001,t+0.16);
+    h.src.forEach(x=>{try{x.stop(t+0.2);}catch(_){}}); }
   function tally(){ if(!ready()) return; const t=ctx.currentTime;
     [76,79,83,88].forEach((m,i)=>osc({type:"triangle",f:mtof(m),t:t+i*0.07,dur:0.16,g:0.05,lp:5000})); }
   function boost(pan=0,vol=1){ if(!ready()) return; const t=ctx.currentTime, d=out(pan);
@@ -684,7 +714,7 @@ const Sound=(function(){
     musicTone.frequency.cancelScheduledValues(t);
     musicTone.frequency.setTargetAtTime(mode==="dead"?600:(mode==="menu"?4500:8000),t,0.25);
   }
-  return {init,step,jump,land,crash,count,roundEnd,matchEnd,click,whoosh,tally,boost,boostReady,pop,
+  return {init,step,jump,hoverStart,hoverStop,land,crash,count,roundEnd,matchEnd,click,whoosh,tally,boost,boostReady,pop,
     setMode(m){mode=m;applyMode();},
     setMusic(b){musicOn=b;applyMode();save();},
     setSfx(b){sfxOn=b; if(ctx) sfxBus.gain.setTargetAtTime(b?1:0,ctx.currentTime,0.02); save();},
@@ -775,16 +805,17 @@ class Trail{
 // ---------- Characters ----------
 // Same body, different stats. Each stat is 1–5 and every character sums to 9.
 const CHARS=[
-  {id:"bolt",  name:"Bolt",  color:0xff6b4a, fart:5, smid:2, boost:2, look:"fin",     tag:"Fastest feet on the planet. Corners are more of a suggestion."},
-  {id:"swoop", name:"Swoop", color:0x3ec5ff, fart:2, smid:5, boost:2, look:"antenna", tag:"Turns on a dime and never panics."},
-  {id:"sparky",name:"Sparky",color:0xffcf3a, fart:2, smid:2, boost:5, look:"spikes",  tag:"Boost is always almost ready."},
-  {id:"scout", name:"Scout", color:0xc58bff, fart:3, smid:3, boost:3, look:"cap",     tag:"A bit of everything. No weak spots."},
-  {id:"flick", name:"Flick", color:0xff7ac8, fart:4, smid:4, boost:1, look:"ears",    tag:"Quick and nimble, but rarely boosts."},
-  {id:"nimbus",name:"Nimbus",color:0xeef0ff, fart:1, smid:4, boost:4, look:"puff",    tag:"Slow and floaty, with sharp turns and big boosts."},
+  {id:"bolt",  name:"Bolt",  color:0xff6b4a, fart:5, smid:2, boost:3, hov:2, look:"fin",     tag:"Fastest feet on the planet. Corners are more of a suggestion."},
+  {id:"swoop", name:"Swoop", color:0x3ec5ff, fart:2, smid:5, boost:1, hov:4, look:"antenna", tag:"Turns on a dime and glides with ease."},
+  {id:"sparky",name:"Sparky",color:0xffcf3a, fart:2, smid:2, boost:5, hov:3, look:"spikes",  tag:"Boost is always almost ready."},
+  {id:"scout", name:"Scout", color:0xc58bff, fart:3, smid:3, boost:3, hov:3, look:"cap",     tag:"A bit of everything. No weak spots."},
+  {id:"flick", name:"Flick", color:0xff7ac8, fart:4, smid:4, boost:2, hov:2, look:"ears",    tag:"Quick and nimble, but rarely boosts."},
+  {id:"nimbus",name:"Nimbus",color:0xeef0ff, fart:1, smid:3, boost:3, hov:5, look:"puff",    tag:"Slow on the ground, but floats longer than anyone."},
 ];
 const BOOST_BASE=9;      // seconds to fill the boost meter at stat 3
 const BOOST_T=0.45;      // push duration
-const BOOST_PEAK=1.4;    // extra speed at the start of the push (2.4× total)
+const BOOST_PEAK=1.4;
+const HOVER_BASE=0.45, HOVER_STEP=0.125;  // seconds of hover at stat 3, and per stat point (0.2 s … 0.7 s)    // extra speed at the start of the push (2.4× total)
 const hexc=c=>"#"+c.toString(16).padStart(6,"0");
 const rgba=(c,a)=>`rgba(${c>>16&255},${c>>8&255},${c&255},${a})`;
 
@@ -824,6 +855,12 @@ function makeFigure(ch,human,parent,colorOverride){
   if(human){const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.56,32),
       new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.7,side:THREE.DoubleSide,depthWrite:false}));
     ring.rotation.x=-Math.PI/2; ring.position.y=0.03; g.add(ring); g.userData.ring=ring;}
+  { // hover wings (shown only while hovering): two glowing wings that flap fast, seen well from the chase camera
+    const hp=new THREE.Group(), wm=new THREE.MeshBasicMaterial({color:col.clone().lerp(new THREE.Color(0xffffff),0.55),transparent:true,opacity:0.9,side:THREE.DoubleSide,depthWrite:false});
+    const wg=new THREE.CircleGeometry(0.3,20), wings=[];
+    for(const sd of [-1,1]){const piv=new THREE.Group(); piv.position.set(0.12*sd,0.74,-0.06);
+      const w=new THREE.Mesh(wg,wm); w.scale.set(1.5,0.7,1); w.position.x=0.42*sd; piv.add(w); hp.add(piv); wings.push(piv);}
+    hp.visible=false; g.add(hp); g.userData.hpad=hp; g.userData.wings=wings;}
   g.userData.legs=legs; parent.add(g); return g;
 }
 // one-time 3D portraits for the character picker
@@ -882,6 +919,13 @@ function streak(pl){
   addFx(m,pl.h.clone().multiplyScalar(-3),0.22,"streak");
 }
 const nrm=new THREE.Vector3();
+const puffGeo=new THREE.SphereGeometry(0.16,10,8);
+function puff(pl){ // soft little air puffs under a hovering runner
+  const m=new THREE.Mesh(puffGeo,new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.5,depthWrite:false}));
+  bx.crossVectors(pl.p,pl.h);
+  m.position.copy(pl.p).multiplyScalar(R+pl.y-0.05).addScaledVector(bx,(Math.random()-.5)*0.4).addScaledVector(pl.h,-0.15);
+  addFx(m,pl.p.clone().multiplyScalar(-1.1),0.45,"puff",{mat:m.material});
+}
 function tickFx(dt){
   for(let i=fx.length-1;i>=0;i--){
     const f=fx[i], m=f.m; f.life-=dt; const k=Math.max(0,f.life/f.max);
@@ -897,6 +941,8 @@ function tickFx(dt){
     else if(f.kind==="spark"){f.v.multiplyScalar(1-2.2*dt); f.v.addScaledVector(nrm,-2.5*dt); m.position.addScaledVector(f.v,dt); m.scale.setScalar(Math.max(0.01,k));}
     else if(f.kind==="flash"){m.scale.setScalar(1+(1-k)*4);}
     else if(f.kind==="streak"){m.position.addScaledVector(f.v,dt); m.scale.set(1,1,Math.max(0.01,k));}
+    else if(f.kind==="puff"){m.position.addScaledVector(f.v,dt); m.scale.setScalar(1+(1-k)*1.6); f.mat.opacity=0.5*k;
+      if(f.life<=0) f.mat.dispose();}
     if(f.life<=0){scene.remove(m); fx.splice(i,1);}
   }
 }
@@ -906,10 +952,11 @@ let chipOrder=[], players=[], opponents=3, round=0, state="menu", timeScale=1, s
 let selChar="scout"; try{const s=localStorage.getItem("klot-char"); if(CHARS.some(c=>c.id===s)) selChar=s;}catch(_){}
 const tmpA=new THREE.Vector3(), tmpB=new THREE.Vector3(), tmpC=new THREE.Vector3();
 function makePlayers(list){
-  for(const p of players){scene.remove(p.fig);scene.remove(p.trail.mesh);p.trail.geo.dispose();}
+  for(const p of players){if(p.hoverSnd) Sound.hoverStop(p.hoverSnd); scene.remove(p.fig);scene.remove(p.trail.mesh);p.trail.geo.dispose();}
   players=list.map((e,i)=>{const ch=e.ch, col=e.color!=null?e.color:ch.color, local=e.kind==="local";
     return {i,ch,name:local?"You":(e.name||ch.name),color:col,human:local,remote:e.kind==="remote",peer:e.peer||null,score:0,
     speed:SPEED*(1+(ch.fart-3)*0.06), turn:TURN*(1+(ch.smid-3)*0.12), charge:BOOST_BASE*(1-(ch.boost-3)*0.15),
+    hoverMax:HOVER_BASE+(ch.hov-3)*HOVER_STEP, hoverLeft:0, hovering:false, botHover:false, puffT:0,
     boost:0,bt:-1,streakT:0,netT:new THREE.Vector3(),netHas:false,netJ:0,netB:0,left:false,forceOut:false,np:null,nh:null,ny:0,sb:[],pq:[],log:[],off:null,dieT:null,
     p:new THREE.Vector3(),h:new THREE.Vector3(),y:0,jt:-1,cool:0,acc:0,alive:true,rank:0,
     turnCmd:0,think:0,jumpBuf:0,stride:0,stepN:0,trail:new Trail(col),fig:makeFigure(ch,local,null,col)};});
@@ -952,14 +999,14 @@ function advance(p,h,dist,extra){
 
 // ---------- Bots ----------
 const sp=new THREE.Vector3(), sh=new THREE.Vector3();
-function probe(b,k,jump){
+function probe(b,k,jump,hov){
   sp.copy(b.p); sh.copy(b.h);
-  let jt=b.jt, t=0; const dt=0.06, H=2.0, lim=b.trail.n-1-GRACE;
+  let jt=b.jt, t=0, hl=hov?b.hoverMax:0; const dt=0.06, H=2.0, lim=b.trail.n-1-GRACE;
   if(jump) jt=0;
   while(t<H){
     if(jt<0) sh.applyAxisAngle(sp,k*b.turn*dt);
     advance(sp,sh,b.speed*dt); t+=dt;
-    let y=0; if(jt>=0){jt+=dt; if(jt<JT) y=jumpY(jt); else jt=-1;}
+    let y=0; if(jt>=0){ if(hl>0&&jt>=JT/2) hl-=dt; else jt+=dt; if(jt<JT) y=jumpY(jt); else jt=-1;}
     if(hitsTrail(sp.x,sp.y,sp.z,y,b.i,lim)) return t;
   }
   return H+0.001;
@@ -972,9 +1019,14 @@ function botThink(b){
   }
   b.turnCmd=bestK;
   if(b.jt<0 && b.cool<=0 && best<1.2){
+    let done=false;
     for(const k of [-0.55,0,0.55]){
       const s=probe(b,k,true);
-      if(s>best+0.3 && Math.random()<0.8){b.jt=0;b.turnCmd=k;onJump(b);break;}
+      if(s>best+0.3 && Math.random()<0.8){b.jt=0;b.hoverLeft=b.hoverMax;b.botHover=false;b.turnCmd=k;onJump(b);done=true;break;}
+    }
+    if(!done) for(const k of [-0.55,0,0.55]){
+      const s=probe(b,k,true,true);
+      if(s>best+0.3 && Math.random()<0.75){b.jt=0;b.hoverLeft=b.hoverMax;b.botHover=true;b.turnCmd=k;onJump(b);break;}
     }
   }
   if(b.boost>=1 && b.bt<0 && best>=2 && Math.random()<0.12) useBoost(b);
@@ -984,6 +1036,9 @@ function botThink(b){
 const ptrs=new Map(); let joyId=null, joyX=0, joyY=0, joyDX=0, joyDY=0;
 const keys=new Set();
 function tryJump(){const me=meP(); if(!me||!me.alive) return; me.jumpBuf=0.14;}
+// Hover: tap to jump, then press again and hold while in the air. The first finger (steering) never counts.
+let hoverHeld=false, hoverPtr=null, hoverUsed=false;
+const airborne=me=>!!me&&me.alive&&state==="play"&&(me.jt>=0||me.jumpBuf>0);
 function pressBoost(){if(state!=="play") return; useBoost(meP());}
 // One finger does everything: hold and drag = steer, quick tap = jump, quick flick up = boost.
 // A fast upward start is held back from steering for a moment so a flick doesn't yank the runner.
@@ -995,7 +1050,8 @@ function joyActive(){
 stage.addEventListener("pointerdown",e=>{
   if(state!=="play"&&state!=="count") return;
   e.preventDefault();
-  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY,t:performance.now(),moved:false,flick:false});
+  ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY,t:performance.now(),moved:false,flick:false,air:false});
+  if(airborne(meP())){hoverHeld=true; hoverPtr=e.pointerId; hoverUsed=false; ptrs.get(e.pointerId).air=true;}
   if(joyId===null){joyId=e.pointerId;joyX=e.clientX;joyY=e.clientY;joyDX=joyDY=0;}
   try{stage.setPointerCapture(e.pointerId);}catch(_){}
 });
@@ -1015,7 +1071,9 @@ stage.addEventListener("pointermove",e=>{
 function endPtr(e){
   const r=ptrs.get(e.pointerId); if(!r) return; ptrs.delete(e.pointerId);
   const age=performance.now()-r.t, up=r.y-e.clientY, side=Math.abs(e.clientX-r.x);
-  if(age<280 && up>40 && up>1.3*side){ pressBoost(); }
+  if(e.pointerId===hoverPtr){hoverHeld=false; hoverPtr=null;}
+  if(r.air&&hoverUsed){ /* that press was a hover, not a new jump */ }
+  else if(age<280 && up>40 && up>1.3*side){ pressBoost(); }
   else if(!r.moved && age<260) tryJump();
   if(e.pointerId===joyId){joyId=null;joyDX=joyDY=0;joy.hidden=true;knob.style.transform="";}
 }
@@ -1024,11 +1082,11 @@ stage.addEventListener("contextmenu",e=>e.preventDefault());
 const boostBar=$("boostBar"), boostLbl=$("boostLbl");
 window.addEventListener("keydown",e=>{
   if(state==="select"&&(e.code==="ArrowLeft"||e.code==="ArrowRight")){shiftChar(e.code==="ArrowLeft"?-1:1);return;}
-  if(e.code==="Space"){e.preventDefault(); if(!e.repeat) tryJump(); return;}
+  if(e.code==="Space"){e.preventDefault(); if(e.repeat) return; if(airborne(meP())){hoverHeld=true; hoverUsed=false;} else tryJump(); return;}
   if((e.code==="KeyB"||e.code==="ShiftLeft"||e.code==="ShiftRight")&&!e.repeat&&state==="play"){pressBoost();return;}
   keys.add(e.code);
 });
-window.addEventListener("keyup",e=>keys.delete(e.code));
+window.addEventListener("keyup",e=>{keys.delete(e.code); if(e.code==="Space"&&hoverPtr===null) hoverHeld=false;});
 
 const camRight=new THREE.Vector3(), camUpW=new THREE.Vector3(), want=new THREE.Vector3();
 // The stick picks a direction once; that direction is then locked in world space and
@@ -1091,13 +1149,23 @@ function stepPlayer(pl,dt){
     assist(pl,dt);
     if(pl.asCmd){const a=pl.asCmd*pl.turn*dt; pl.h.applyAxisAngle(pl.p,a);
       if(pl.human&&joyAng!==null) humTarget.applyAxisAngle(pl.p,a); else if(pl.remote&&pl.netHas) pl.netT.applyAxisAngle(pl.p,a);}
-    if(pl.jumpBuf>0){pl.jumpBuf-=dt; if(pl.jt<0&&pl.cool<=0){pl.jt=0;pl.jumpBuf=0;onJump(pl);}}
+    if(pl.jumpBuf>0){pl.jumpBuf-=dt; if(pl.jt<0&&pl.cool<=0){pl.jt=0;pl.jumpBuf=0;pl.hoverLeft=pl.hoverMax;onJump(pl);}}
   } else {
     pl.think-=dt; if(pl.think<=0){pl.think=0.09+Math.random()*0.06; botThink(pl);}
     if(pl.jt<0) pl.h.applyAxisAngle(pl.p,pl.turnCmd*pl.turn*dt);
   }
-  // jump
-  if(pl.jt>=0){pl.jt+=dt; if(pl.jt>=JT){pl.jt=-1;pl.y=0;pl.cool=0.12;onLand(pl);} else pl.y=jumpY(pl.jt);}
+  // jump (+ hover: rise to the top of the arc, then hang there while held and time is left)
+  if(pl.jt>=0){
+    const hold=pl.human?hoverHeld:pl.botHover, wasHover=pl.hovering;
+    pl.hovering=false;
+    if(hold&&pl.hoverLeft>0){
+      if(pl.jt<JT/2) pl.jt=Math.min(JT/2,pl.jt+dt);
+      else {pl.hoverLeft-=dt; pl.hovering=true; if(pl.human) hoverUsed=true;
+        pl.puffT-=dt; if(pl.puffT<=0){pl.puffT=0.07; puff(pl);}}
+    } else pl.jt+=dt;
+    if(pl.hovering&&!wasHover) onHover(pl);
+    if(pl.jt>=JT){pl.jt=-1;pl.y=0;pl.cool=0.12;pl.botHover=false;onLand(pl);} else pl.y=jumpY(pl.jt);
+  }
   else if(pl.cool>0) pl.cool-=dt;
   // boost: a short shove that fades out, then the meter refills
   let mul=1;
@@ -1126,6 +1194,17 @@ function spatialAt(v){projV.copy(v).project(camera); const n=v.clone().normalize
   return {pan:Math.max(-1,Math.min(1,projV.x))*0.8, vol:Math.max(0.12,Math.min(1,(n.dot(camC)+0.15)/0.75))};}
 function spatial(pl){return spatialAt(pl.p.clone().multiplyScalar(R+pl.y));}
 function onJump(pl){ hostFx("j",pl); if(pl.human) Sound.jump(0,1); else {const s=spatial(pl); if(s.vol>0.5) Sound.jump(s.pan,s.vol*0.4);} }
+function onHover(){} // the hover hum is started/stopped in hoverSounds()
+// one hum per hovering runner, started when they begin and faded out the moment they stop
+function hoverSounds(){
+  for(const pl of players){
+    const on=pl.hovering&&pl.alive&&state==="play"&&!paused;
+    if(on&&pl.hoverSnd==null){
+      if(pl.human) pl.hoverSnd=Sound.hoverStart(0,1)||false;
+      else {const s=spatial(pl); pl.hoverSnd=s.vol>0.3?(Sound.hoverStart(s.pan,s.vol*0.5)||false):false;}
+    } else if(!on&&pl.hoverSnd!=null){ if(pl.hoverSnd) Sound.hoverStop(pl.hoverSnd); pl.hoverSnd=null; }
+  }
+}
 function onLand(pl){ hostFx("l",pl); if(pl.human) Sound.land(0,1); }
 function onCrash(pl){ if(pl.human) Sound.crash(0,1,true); else {const s=spatial(pl); Sound.crash(s.pan,s.vol,false);} }
 function simStep(dt){
@@ -1183,8 +1262,8 @@ function applyChar(){
   const ch=CHARS[charIdx]; selChar=ch.id; try{localStorage.setItem("klot-char",selChar);}catch(_){}
   charSel.querySelector(".card").style.setProperty("--c",hexc(ch.color));
   [...charDots.children].forEach((d,k)=>d.classList.toggle("on",k===charIdx));
-  $("mSpeed").style.width=ch.fart*20+"%"; $("mHand").style.width=ch.smid*20+"%"; $("mBoost").style.width=ch.boost*20+"%";
-  charTrack.setAttribute("aria-label",`${ch.name}: speed ${ch.fart}, handling ${ch.smid}, boost ${ch.boost} of 5`);
+  $("mSpeed").style.width=ch.fart*20+"%"; $("mHand").style.width=ch.smid*20+"%"; $("mBoost").style.width=ch.boost*20+"%"; $("mHover").style.width=ch.hov*20+"%";
+  charTrack.setAttribute("aria-label",`${ch.name}: speed ${ch.fart}, handling ${ch.smid}, boost ${ch.boost}, hover ${ch.hov} of 5`);
 }
 function shiftChar(dir){
   settleSlide(); void charStrip.offsetWidth;
@@ -1200,7 +1279,7 @@ function openCharSel(){
   makePortraits();
   charDots.innerHTML=CHARS.map(ch=>`<i style="--c:${hexc(ch.color)}"></i>`).join("");
   charIdx=Math.max(0,CHARS.findIndex(c=>c.id===selChar));
-  ["mSpeed","mHand","mBoost"].forEach(id=>$(id).style.width="0");
+  ["mSpeed","mHand","mBoost","mHover"].forEach(id=>$(id).style.width="0");
   charSel.hidden=false; renderStrip();
   const setup=mode==="online"&&!!Net.role;
   $("oppRow").hidden=mode!=="cpu"; $("nameField").hidden=!setup; $("readyRow").hidden=!setup;
@@ -1229,7 +1308,7 @@ function startMatch(){
   beginMatch([{ch:mine,kind:"local"},...others.map(ch=>({ch,kind:"bot"}))]);
 }
 function beginMatch(list){
-  makePlayers(list); round=0; chipOrder=[...players];
+  makePlayers(list); round=0; chipOrder=[...players]; roundScored=true;
   const me=meP(); $("app").style.setProperty("--me",hexc(me?me.color:CHARS[3].color));
   try{navigator.wakeLock&&navigator.wakeLock.request("screen").catch(()=>{});}catch(_){}
   hideSheets(); $("menuNote").hidden=true; hud.hidden=false; roundTag.hidden=false;
@@ -1237,7 +1316,7 @@ function beginMatch(list){
   if(Net.role==="client"){state="wait"; showMsg("Get ready","");} else startRound();
 }
 function startRound(){
-  round++; grid.clear(); timeScale=1; hud.hidden=false; roundTag.hidden=false; ffBtn.hidden=true; panel.hidden=true; celeb=null; stopRain();
+  round++; roundScored=false; grid.clear(); timeScale=1; hud.hidden=false; roundTag.hidden=false; ffBtn.hidden=true; panel.hidden=true; celeb=null; stopRain();
   msgBig.classList.remove("cheer"); msgBig.style.color="";
   const q=new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.random()*6.28,Math.random()*6.28,Math.random()*6.28));
   const dirs=spawnDirs(players.length);
@@ -1246,10 +1325,10 @@ function startRound(){
     tmpA.set(Math.random()-.5,Math.random()-.5,Math.random()-.5);
     pl.h.copy(tmpA).addScaledVector(pl.p,-tmpA.dot(pl.p)).normalize();
     pl.y=0;pl.jt=-1;pl.cool=0;pl.acc=0;pl.alive=true;pl.rank=0;pl.turnCmd=0;pl.think=Math.random()*0.1;pl.jumpBuf=0;pl.stride=0;pl.stepN=0;
-    pl.boost=1;pl.bt=-1;pl.netHas=false;pl.sb=[];pl.pq=[];pl.log=[];pl.dieT=null;pl.forceOut=!!pl.left;
+    pl.boost=1;pl.bt=-1;pl.netHas=false;pl.hovering=false;pl.botHover=false;pl.hoverLeft=0;pl.sb=[];pl.pq=[];pl.log=[];pl.dieT=null;pl.forceOut=!!pl.left;
     pl.trail.reset(); pl.fig.visible=true; if(!pl.remote) dropPoint(pl);
   });
-  const me0=meP()||players[0]; camC.copy(me0.p); camU.copy(me0.h);
+  const me0=meP()||players[0]; camC.copy(me0.p); camU.copy(me0.h); hoverHeld=false; hoverPtr=null;
   state="count"; stateT=3; Sound.setMode("count"); renderChips();
   roundTag.textContent=`Round ${round} · first to ${POINTS_TO_WIN}`;
   if(Net.role==="host"){Net.tpSent=new Map(); Net.sendAcc=1;
@@ -1261,7 +1340,7 @@ function endRound(){
   const winners=players.filter(p=>p.rank===1);
   assignPos("prevPos");
   for(const pl of players) pl.score+=pointsFor(pl.rank);
-  assignPos("pos"); chipOrder=standingOrder(players);
+  assignPos("pos"); chipOrder=standingOrder(players); roundScored=true;
   if(Net.role==="host") broadcast({t:"end",T:performance.now(),r:players.map(p=>p.rank),s:players.map(p=>p.score),pp:players.map(p=>p.prevPos),po:players.map(p=>p.pos)});
   const w=winners.length===1?winners[0]:null; stateT=1.6;
   showMsg(w?(w.human?"You win the round!":`${w.name} wins the round`):"Draw","");
@@ -1302,12 +1381,14 @@ function showPanel(){
   const ol=$("results"); ol.innerHTML="";
   for(const pl of standingOrder(players)){
     const gain=pointsFor(pl.rank), li=document.createElement("li"), d=pl.prevPos-pl.pos;
-    if(pl.human) li.classList.add("me"); if(matchOver&&pl===leaders[0]) li.classList.add("win");
+    if(pl.human) li.classList.add("me");
+    const champ=matchOver&&pl===leaders[0];
     const mv=round>1&&d>0?`<span class="move up">▲${d}</span>`:round>1&&d<0?`<span class="move down">▼${-d}</span>`:"";
     li.innerHTML=`<span class="rk">${pl.pos}.</span><span class="dot" style="background:${hexc(pl.color)}"></span>
-      <span class="nm">${matchOver&&pl===leaders[0]?CROWN:""}${esc(pl.name)}${mv}</span><span class="plus">+${gain}</span><span class="tot">${reduce?pl.score:pl.score-gain}</span>
+      <span class="nm">${esc(pl.name)}${mv}</span><span class="plus">+${gain}</span><span class="tot">${reduce?pl.score:pl.score-gain}</span>
       <span class="bar"><i style="width:${pct(reduce?pl.score:pl.score-gain)}%;background:${hexc(pl.color)}"></i></span>`;
     ol.appendChild(li);
+    if(champ) setTimeout(()=>{if(state!=="panel") return; li.classList.add("win"); const nm=li.querySelector(".nm"); nm.insertAdjacentHTML("afterbegin",CROWN); nm.insertAdjacentHTML("beforeend",'<span class="winTag">Winner</span>');},reduce?0:900);
     if(!reduce) setTimeout(()=>{if(state!=="panel")return; li.querySelector(".bar i").style.width=pct(pl.score)+"%";
       countUp(li.querySelector(".tot"),pl.score-gain,pl.score);},450);
   }
@@ -1379,8 +1460,43 @@ function tickRain(dt){
 function toMenu(){leaveOnline();hideSheets();state="menu";Sound.setMode("menu");panel.hidden=true;hud.hidden=true;roundTag.hidden=true;charSel.hidden=true;
   boostBar.hidden=true;hideMsg();stopRain();celeb=null;menu.hidden=false;
   joy.hidden=true; joyId=null; ptrs.clear();}
+// Score chips: during a round the survivors stay in front; whoever crashes gets their points
+// right away (the number flips over) and slides to the back, in finishing order. At round end everything
+// settles into the overall standings. Each move is animated from where the chip was (FLIP).
+let roundScored=true, chipFor=null;
+const chipEls=new Map();
+function chipScore(pl){return (!roundScored&&!pl.alive&&pl.rank)?pl.score+pointsFor(pl.rank):pl.score;}
+function chipSort(){
+  if(roundScored||state==="count"||state==="wait") return standingOrder(players);
+  const alive=players.filter(p=>p.alive).sort((a,b)=>b.score-a.score||a.i-b.i);
+  const out=players.filter(p=>!p.alive).sort((a,b)=>(a.rank||9)-(b.rank||9)||a.i-b.i);
+  return [...alive,...out];
+}
 function renderChips(){
-  chips.innerHTML=chipOrder.map(pl=>`<span class="chip${pl.human?" me":""}${pl.alive||state!=="play"?"":" out"}"><span class="dot" style="background:${hexc(pl.color)}"></span>${esc(pl.name)}<b>${pl.score}</b></span>`).join("");
+  if(chipFor!==players){chips.innerHTML=""; chipEls.clear(); chipFor=players;}
+  const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const before=new Map(); if(!hud.hidden&&!reduce) chipEls.forEach((el,pl)=>before.set(pl,el.getBoundingClientRect()));
+  const order=chipSort();
+  for(const pl of order){
+    let el=chipEls.get(pl);
+    if(!el){el=document.createElement("span"); el.innerHTML='<span class="dot"></span><span class="cn"></span><b></b>'; chipEls.set(pl,el);}
+    el.className="chip"+(pl.human?" me":"")+(pl.alive||state!=="play"?"":" out");
+    el.querySelector(".dot").style.background=hexc(pl.color);
+    el.querySelector(".cn").textContent=pl.name;
+    const to=chipScore(pl), b=el.querySelector("b");
+    if(el._v===undefined||to<el._v||reduce||hud.hidden){b.textContent=to;}
+    else if(to>el._v) chipFlip(b,to);
+    el._v=to;
+    chips.appendChild(el);
+  }
+  for(const pl of order){const el=chipEls.get(pl), a=before.get(pl); if(!a||!a.width) continue;
+    const c=el.getBoundingClientRect(), dx=a.left-c.left, dy=a.top-c.top;
+    if(Math.abs(dx)>1||Math.abs(dy)>1) el.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:"none"}],{duration:520,easing:"cubic-bezier(.2,.8,.2,1)"});}
+}
+function chipFlip(b,to){
+  const out=b.animate([{transform:"perspective(120px) rotateX(0)"},{transform:"perspective(120px) rotateX(90deg)"}],{duration:150,easing:"ease-in",fill:"forwards"});
+  out.onfinish=()=>{b.textContent=to; out.cancel();
+    b.animate([{transform:"perspective(120px) rotateX(-90deg)"},{transform:"perspective(120px) rotateX(0)"}],{duration:260,easing:"cubic-bezier(.2,.8,.3,1.25)"});};
 }
 function showMsg(big,small){msg.hidden=false;msgBig.textContent=big;msgSmall.textContent=small;msgSmall.hidden=!small;}
 function hideMsg(){msg.hidden=true;ffBtn.hidden=true;msgBig.classList.remove("cheer");msgBig.style.color="";}
@@ -1715,7 +1831,7 @@ function hostTick(dt){
   const now=performance.now(), Tn=Math.round(now);
   // positions: our own runners as they are now, guests as they last reported (in our clock)
   const pl=players.map(p=>{
-    if(!p.remote) return [r3(p.p.x),r3(p.p.y),r3(p.p.z),r3(p.h.x),r3(p.h.y),r3(p.h.z),r2(p.y),(p.jt>=0?2:0)|(p.bt>=0?4:0),r2(p.boost),Tn];
+    if(!p.remote) return [r3(p.p.x),r3(p.p.y),r3(p.p.z),r3(p.h.x),r3(p.h.y),r3(p.h.z),r2(p.y),(p.jt>=0?2:0)|(p.bt>=0?4:0)|(p.hovering?8:0),r2(p.boost),Tn];
     const L=p.sb.length?p.sb[p.sb.length-1]:null; if(!L||p.off==null) return null;
     return [...L.a.slice(0,9),Math.round(L.T-p.off)];
   });
@@ -1805,14 +1921,14 @@ function clientData(d){
 }
 function clientRound(d){
   Net.rrDeadline=0; Net.evq=[]; Net.mySent=0; Net.sendAcc=1;
-  round=d.round|0; panel.hidden=true; stopRain(); celeb=null; hideMsg(); grid.clear();
+  round=d.round|0; roundScored=false; panel.hidden=true; stopRain(); celeb=null; hideMsg(); grid.clear();
   hud.hidden=false; roundTag.hidden=false;
   players.forEach((pl,i)=>{const a=d.pl&&d.pl[i]; if(!a) return;
     pl.p.set(a[0],a[1],a[2]).normalize(); pl.h.set(a[3],a[4],a[5]).normalize(); pl.sb=[]; pl.pq=[]; pl.log=[];
-    pl.y=0; pl.jt=-1; pl.bt=-1; pl.cool=0; pl.acc=0; pl.jumpBuf=0; pl.asT=0; pl.asCmd=0; pl.boost=1; pl.alive=true; pl.rank=0; pl.stride=0; pl.stepN=0;
+    pl.y=0; pl.jt=-1; pl.bt=-1; pl.cool=0; pl.acc=0; pl.jumpBuf=0; pl.hovering=false; pl.hoverLeft=0; pl.asT=0; pl.asCmd=0; pl.boost=1; pl.alive=true; pl.rank=0; pl.stride=0; pl.stepN=0;
     pl.trail.reset(); pl.fig.visible=true;});
   const m=meP(); if(m){camC.copy(m.p); camU.copy(m.h); dropPoint(m);}
-  joyAng=null;
+  joyAng=null; hoverHeld=false; hoverPtr=null;
   state="count"; stateT=3; Sound.setMode("count"); renderChips();
   roundTag.textContent=`Round ${round} · first to ${POINTS_TO_WIN}`;
 }
@@ -1841,14 +1957,16 @@ function proxyApply(pl,rt,dt){
     pl.y=a[6]+(b[6]-a[6])*f;
     // ran out of reports: keep them running straight for a moment instead of freezing
     if(k<0&&state==="play"&&pl.alive){const late=Math.min(0.15,(rt-A.T)/1000); if(late>0) advance(pl.p,pl.h,pl.speed*late);}
-    const F=f<0.5?a:b, jt=(F[7]&2)?0:-1, bt=(F[7]&4)?0:-1;
+    const F=f<0.5?a:b, jt=(F[7]&2)?0:-1, bt=(F[7]&4)?0:-1, hov=!!(F[7]&8);
     if(state==="play"&&pl.alive){
       if(jt>=0&&pl.jt<0) onJump(pl);
+      if(hov&&!pl.hovering) onHover(pl);
+      if(hov){pl.puffT-=dt; if(pl.puffT<=0){pl.puffT=0.07; puff(pl);}}
       if(bt>=0&&pl.bt<0){const s=spatial(pl); if(s.vol>0.4) Sound.boost(s.pan,s.vol*0.45);}
       const moved=_np.distanceTo(pl.p)*R;
       if(moved<3){pl.stride+=moved; if(bt>=0){pl.streakT-=dt; if(pl.streakT<=0){pl.streakT=0.03; streak(pl);}}}
     }
-    pl.jt=jt; pl.bt=bt; pl.boost=F[8];
+    pl.jt=jt; pl.bt=bt; pl.hovering=hov; pl.boost=F[8];
     while(sb.length>2&&sb[1].T<rt-200) sb.shift();
   }
   // tube points appear when the shown runner gets there
@@ -1878,7 +1996,7 @@ function clientState(d){
 function clientEnd(d){
   players.forEach((pl,i)=>{if(Array.isArray(d.r)) pl.rank=d.r[i]|0; if(Array.isArray(d.s)) pl.score=d.s[i]|0;
     if(Array.isArray(d.pp)) pl.prevPos=d.pp[i]|0; if(Array.isArray(d.po)) pl.pos=d.po[i]|0;});
-  chipOrder=standingOrder(players);
+  chipOrder=standingOrder(players); roundScored=true;
   state="ending"; timeScale=1; ffBtn.hidden=true;
   const winners=players.filter(p=>p.rank===1), w=winners.length===1?winners[0]:null; stateT=1.6;
   showMsg(w?(w.human?"You win the round!":`${w.name} wins the round`):"Draw","");
@@ -1903,7 +2021,7 @@ function clientSend(force){
   const me=meP(), c=Net.hostConn; if(!me||!c||!c.open) return;
   const now=performance.now();
   if(me.alive&&state==="play"){
-    const st={t:"st",r:round,T:now,a:[r3(me.p.x),r3(me.p.y),r3(me.p.z),r3(me.h.x),r3(me.h.y),r3(me.h.z),r2(me.y),(me.jt>=0?2:0)|(me.bt>=0?4:0),r2(me.boost)]};
+    const st={t:"st",r:round,T:now,a:[r3(me.p.x),r3(me.p.y),r3(me.p.z),r3(me.h.x),r3(me.h.y),r3(me.h.z),r2(me.y),(me.jt>=0?2:0)|(me.bt>=0?4:0)|(me.hovering?8:0),r2(me.boost)]};
     const u=Net.uConn; try{(u&&u.open?u:c).send(st);}catch(_){}
   }
   const L=me.log, from=Net.mySent||0;
@@ -1984,6 +2102,12 @@ function syncFigures(){
     const sw=pl.jt>=0?0.9:(run?Math.sin(pl.stride*Math.PI/STEP_LEN)*0.75:0);
     legs[0].rotation.x=pl.jt>=0?-sw:sw; legs[1].rotation.x=pl.jt>=0?-sw*0.6:-sw;
     if(pl.fig.userData.ring) pl.fig.userData.ring.position.y=0.03-pl.y;
+    const hp=pl.fig.userData.hpad, hov=pl.hovering&&state==="play";
+    if(hp&&hp.visible!==hov) hp.visible=hov;
+    if(hov){const t=performance.now()/1000, f=Math.sin(t*19), w=pl.fig.userData.wings;
+      w[0].rotation.z=-(0.25+0.55*f); w[1].rotation.z=0.25+0.55*f;
+      pl.fig.position.addScaledVector(pl.p,0.06*Math.sin(t*8));
+      legs[0].rotation.x=Math.sin(t*20)*0.6; legs[1].rotation.x=-Math.sin(t*20)*0.6;}
   }
 }
 function syncBoostUI(){
@@ -1999,7 +2123,7 @@ function resize(){
   const w=window.innerWidth,h=window.innerHeight; renderer.setSize(w,h,false);
   camera.aspect=w/h;
   const vHalf=THREE.MathUtils.degToRad(BASE_FOV/2), hHalf=Math.atan(Math.tan(vHalf)*camera.aspect);
-  camDist=Math.max(R+8,(R*1.02)/Math.sin((vHalf+2*hHalf)/3));
+  camDist=Math.max(R0+8,(R0*1.02)/Math.sin((vHalf+2*hHalf)/3))-(R0-R);
   camera.updateProjectionMatrix();
 }
 window.addEventListener("resize",resize); resize();
@@ -2021,7 +2145,7 @@ function frame(now){
   clientTick(dt); proxyFrame(dt); hostTick(dt); hostRoundTick();
   if(state==="panel"&&Net.rrDeadline&&$("rrStatus")){Net._rrT=(Net._rrT||0)+dt; if(Net._rrT>0.25){Net._rrT=0; panelReady();}}
   for(const pl of players) pl.trail.flush();
-  tickCeleb(dt); syncFigures(); tickFx(dt); updateCamera(dt); syncBoostUI(); tickRain(dt);
+  tickCeleb(dt); hoverSounds(); syncFigures(); tickFx(dt); updateCamera(dt); syncBoostUI(); tickRain(dt);
   renderer.render(scene,camera);
   requestAnimationFrame(frame);
 }
