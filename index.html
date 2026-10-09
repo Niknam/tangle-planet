@@ -68,7 +68,8 @@ body{background:var(--space);color:var(--ink);font-family:var(--font-body);overf
   background:rgba(243,240,255,.55)}
 
 .sheet{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:16px;
-  padding-top:calc(env(safe-area-inset-top,0px) + 16px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  padding-top:calc(env(safe-area-inset-top,0px) + 56px);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 16px + var(--kb,0px));
+  transition:padding-bottom .25s cubic-bezier(.2,.8,.2,1);
   background:rgba(8,11,26,.55)}
 .card{width:min(380px,100%);max-height:100%;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:var(--panel);border:1px solid var(--line);
   border-radius:22px;padding:22px 20px;display:flex;flex-direction:column;gap:16px;box-shadow:0 20px 60px rgba(0,0,0,.45)}
@@ -88,6 +89,8 @@ h2{font-family:var(--font-display);font-weight:400;font-size:30px;line-height:1.
   background:var(--you);color:#1d0d08;box-shadow:0 4px 0 #b8432b}
 .btn:active{transform:translateY(2px);box-shadow:0 2px 0 #b8432b}
 .btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);box-shadow:none;font-size:18px}
+.btn.secondary{background:rgba(255,107,74,.13);color:var(--ink);border:2px solid var(--you);box-shadow:0 3px 0 rgba(184,67,43,.55);padding-block:12px}
+.btn.secondary:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(184,67,43,.55)}
 .btn.small{font-size:16px;padding:9px 16px;border-radius:12px}
 button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .row{display:flex;gap:8px}
@@ -154,16 +157,16 @@ h1{font-size:44px}
 @keyframes lgTw{50%{opacity:.3;transform:scale(.6)}}
 #homeBtn{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:16px;z-index:5}
 #globalSound{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:16px;z-index:5}
-#charSel .card{--pw:min(330px,82vw,36vh)}
-.carousel{position:relative;margin-inline:-20px;display:flex;flex:none}
+#charSel .card{align-self:stretch;height:auto;max-height:760px;overflow:hidden;gap:12px;box-sizing:border-box}
+.carousel{position:relative;margin-inline:-20px;display:flex;flex:1 1 auto;min-height:0}
 .track{flex:1;min-width:0;overflow:hidden;touch-action:none;cursor:grab}
-.strip{display:flex;width:300%;will-change:transform}
-.slide{flex:0 0 33.3333%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:8px;padding:0 20px;min-width:0}
-.portrait{width:var(--pw);aspect-ratio:1;max-width:100%;border-radius:50%;background:radial-gradient(circle at 50% 55%,var(--cbg) 0%,transparent 68%)}
-.portrait img{width:100%;height:100%;display:block}
+.strip{display:flex;width:300%;height:100%;will-change:transform}
+.slide{flex:0 0 33.3333%;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:6px;padding:0 20px;min-width:0;min-height:0;height:100%}
+.portrait{flex:1 1 0;min-height:60px;width:100%;max-height:340px;background:radial-gradient(circle closest-side at 50% 55%,var(--cbg) 0%,transparent 100%)}
+.portrait img{width:100%;height:100%;display:block;object-fit:contain}
 .slideName{font-family:var(--font-display);font-size:36px;line-height:1;color:var(--c)}
 .tag{margin:0;color:var(--muted);font-size:14.5px;line-height:1.35;text-align:center;min-height:2.7em;text-wrap:balance;max-width:30ch}
-.nav{position:absolute;top:calc(var(--pw)/2 - 22px);z-index:1;width:44px;height:44px;padding:0;border-radius:50%;
+.nav{position:absolute;top:calc((100% - 5.4em)/2 - 22px);z-index:1;width:44px;height:44px;padding:0;border-radius:50%;
   border:1px solid var(--line);background:var(--panel);color:var(--ink);display:grid;place-items:center}
 .nav.prev{left:14px} .nav.next{right:14px}
 .nav:disabled{opacity:.2}
@@ -185,7 +188,9 @@ h1{font-size:44px}
 .stats{display:grid;grid-template-columns:auto 1fr;gap:7px 12px;margin:0;align-items:center}
 .stats dt{font-weight:800;font-size:13px;color:var(--muted)}
 .stats dd{margin:0;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
-#charStats{width:100%;max-width:300px;align-self:center}
+#charStats{width:100%;max-width:300px;align-self:center;flex:none}
+#charSel .field input{padding-block:9px}
+#charSel .row,#charSel .dots,#charSel .readyRow,#charSel .oppRow,#charSel .field{flex:none}
 #charStats dd{display:block}
 .portrait img{pointer-events:none;-webkit-user-drag:none;user-select:none}
 .meter{position:relative;display:block;height:10px;border-radius:5px;background:var(--line);overflow:hidden}
@@ -335,7 +340,7 @@ input::placeholder{color:var(--muted);opacity:.6}
     <div class="card">
       <div class="label">Play online</div>
       <button class="btn" id="createBtn" type="button">Create game</button>
-      <button class="btn ghost" id="toJoinBtn" type="button">Join a game</button>
+      <button class="btn secondary" id="toJoinBtn" type="button">Join a game</button>
       <p class="status" id="onlineStatus" role="status"></p>
       <button class="btn ghost" id="onlineBack" type="button">Back</button>
     </div>
@@ -360,11 +365,20 @@ input::placeholder{color:var(--muted);opacity:.6}
     <div class="card">
       <div class="lobbyTop">
         <div><div class="label">Game code</div><div class="codeBig" id="lobbyCode">----</div></div>
-        <button class="btn ghost small" id="shareBtn" type="button">Invite</button>
+        <button class="btn ghost small" id="shareBtn" type="button">Share</button>
       </div>
       <ol class="lobbyList" id="lobbyList"></ol>
       <p class="status" id="lobbyStatus" role="status"></p>
       <div class="row"><button class="btn ghost" id="lobbyLeave" type="button">Leave</button><button class="btn" id="lobbyStart" type="button">Start</button></div>
+    </div>
+  </section>
+
+  <section id="notice" class="sheet" hidden>
+    <div class="card">
+      <div class="label" id="noticeLabel">Match ended</div>
+      <h2 id="noticeTitle">The host left the game</h2>
+      <p class="lead" id="noticeText">The match can't continue without the host.</p>
+      <button class="btn" id="noticeBtn" type="button">Back to home</button>
     </div>
   </section>
 
@@ -1340,36 +1354,55 @@ $("charBack").onclick=()=>{Sound.click(); if(mode==="online"&&Net.role){leaveOnl
 // ---------- Navigation: home outside a match, pause menu inside one ----------
 let paused=false;
 const inMatchState=()=>["count","play","ending","panel","wait"].includes(state)&&players.length>0;
-function openPause(){
-  if(!inMatchState()) {goHome(); return;}
+let pauseStep="menu";
+function openPause(confirm){
+  if(!inMatchState()){goHome(); return;}
   const online=!!Net.role;
   paused=!online;
-  $("pauseLabel").textContent=online?"Online match":"Paused";
-  $("pauseTitle").textContent=online?"Leave the match?":"Take a breather";
-  $("pauseNote").hidden=!online; $("pauseNote").textContent=online?(Net.role==="host"?"The match keeps running for everyone else. As the host, leaving ends it for all players.":"The match keeps running. If you leave, you're out of this match."):"";
-  $("quitBtn").textContent=online?"Leave match":"Quit to home";
-  $("resumeBtn").textContent=online?"Keep playing":"Resume";
+  pauseStep=(online||confirm)?"confirm":"menu";
+  renderPause();
   $("pause").hidden=false; joy.hidden=true; joyId=null; ptrs.clear();
+}
+function renderPause(){
+  const online=!!Net.role, c=pauseStep==="confirm", note=$("pauseNote");
+  $("pauseLabel").textContent=online?"Online match":"Paused";
+  $("pauseTitle").textContent=c?"Leave the match?":"Take a breather";
+  note.hidden=!c;
+  note.textContent=!c?"":online?(Net.role==="host"?"As the host, leaving ends the match for all players.":"The match keeps going without you."):"Your score in this match will be lost.";
+  $("resumeBtn").textContent=c?"Keep playing":"Resume";
+  $("quitBtn").textContent=c?"Leave match":"Quit to home";
 }
 function closePause(){$("pause").hidden=true; paused=false;}
 function goHome(){closePause(); leaveOnline(); toMenu();}
-$("menuBtn").onclick=()=>{Sound.click(); openPause();};
+function openNotice(label,title,text){
+  hideSheets(); hud.hidden=true; roundTag.hidden=true; boostBar.hidden=true; hideMsg(); stopRain(); celeb=null;
+  state="notice"; $("noticeLabel").textContent=label; $("noticeTitle").textContent=title; $("noticeText").textContent=text;
+  $("notice").hidden=false; Sound.setMode("menu");
+}
+$("noticeBtn").onclick=()=>{Sound.click(); goHome();};
+$("menuBtn").onclick=()=>{Sound.click(); openPause(false);};
 $("resumeBtn").onclick=()=>{Sound.click(); closePause();};
-$("quitBtn").onclick=()=>{Sound.click(); goHome();};
-$("homeBtn").onclick=()=>{Sound.click(); if(inMatchState()) openPause(); else goHome();};
+$("quitBtn").onclick=()=>{Sound.click(); if(pauseStep==="menu"){pauseStep="confirm"; renderPause();} else goHome();};
+$("homeBtn").onclick=()=>{Sound.click(); if(inMatchState()) openPause(true); else goHome();};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){ if(!$("pause").hidden) closePause(); else if(state!=="menu") $("homeBtn").click(); }});
 // hardware/gesture back (Android, desktop): back = home, or the pause menu during a match
 try{history.replaceState({tp:"menu"},"");}catch(_){}
 function pushNav(){try{if(!history.state||history.state.tp!=="in") history.pushState({tp:"in"},"");}catch(_){}}
 window.addEventListener("popstate",()=>{
   if(state==="menu") return;
-  if(inMatchState()){openPause(); pushNav();} else goHome();
+  if(inMatchState()){openPause(true); pushNav();} else goHome();
 });
 ffBtn.onclick=()=>{timeScale=4;ffBtn.hidden=true;Sound.whoosh();};
 const soundBtns=[$("soundBtn"),$("globalSound")];
 function syncSoundUI(){soundBtns.forEach(b=>b.setAttribute("aria-pressed",String(Sound.music||Sound.sfx)));}
 soundBtns.forEach(b=>b.onclick=()=>{Sound.init();const on=!(Sound.music||Sound.sfx);Sound.setMusic(on);Sound.setSfx(on);syncSoundUI();});
 syncSoundUI();
+(function(){
+  const vv=window.visualViewport, app=$("app"); if(!vv) return;
+  const upd=()=>{const kb=Math.max(0,Math.round(window.innerHeight-vv.height-vv.offsetTop)); app.style.setProperty("--kb",(kb>80?kb:0)+"px");
+    if(window.scrollY) window.scrollTo(0,0);};
+  vv.addEventListener("resize",upd); vv.addEventListener("scroll",upd);
+})();
 ["pointerdown","touchend","click","keydown"].forEach(ev=>document.addEventListener(ev,()=>Sound.init(),true));
 Sound.init();
 
@@ -1424,7 +1457,7 @@ function netFail(text){const wasJoin=Net.role==="client"; leaveOnline(); if(wasJ
 
 // ----- screens -----
 const onlineSheet=$("online"), lobbySheet=$("lobby");
-function hideSheets(){[menu,charSel,panel,onlineSheet,lobbySheet,$("joinSheet"),$("pause")].forEach(s=>s.hidden=true); paused=false;}
+function hideSheets(){[menu,charSel,panel,onlineSheet,lobbySheet,$("joinSheet"),$("notice"),$("pause")].forEach(s=>s.hidden=true); paused=false;}
 function openOnline(){
   pushNav();
   hideSheets(); hud.hidden=true; roundTag.hidden=true; boostBar.hidden=true; hideMsg(); stopRain();
@@ -1475,8 +1508,9 @@ function renderLobby(){
     +Array.from({length:Math.max(0,4-Net.roster.length)},()=>`<li class="empty"><span class="lp"></span><span class="ln">Open seat</span><span class="lt"></span></li>`).join("");
   const host=Net.role==="host", st=$("lobbyStatus");
   $("lobbyStart").hidden=!host; $("lobbyStart").disabled=Net.roster.length<2;
-  st.textContent=host?(Net.roster.length<2?"Share the code, then keep this screen open while friends join":"Everyone in? Start to pick runners"):"Waiting for the host to start";
-  st.className=host?"status":"waitPill pulse";
+  const waiting=!host||Net.roster.length<2;
+  st.textContent=host?(Net.roster.length<2?"Keep the screen open while friends join":"Everyone in? Start to pick runners"):"Waiting for the host to start";
+  st.className=waiting?"waitPill pulse":"status";
 }
 // pick runner + name together, once everyone has joined
 let myReady=false, pickTimer=0;
@@ -1642,7 +1676,7 @@ function clientJoin(code){
 function readRoster(a){return Array.isArray(a)?a.slice(0,4).map(r=>({id:String(r.id),name:cleanName(r.name),char:charById(r.char).id,ready:!!r.ready})):[];}
 function hostGone(){
   if(Net.role!=="client") return;
-  leaveOnline(); toMenu(); $("menuNote").textContent="The host left the game."; $("menuNote").hidden=false;
+  leaveOnline(); openNotice("Match ended","The host left the game","The match can't continue without the host.");
 }
 function clientData(d){
   if(!d||typeof d!=="object") return;
