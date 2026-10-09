@@ -867,7 +867,7 @@ function makePlayers(list){
   players=list.map((e,i)=>{const ch=e.ch, col=e.color!=null?e.color:ch.color, local=e.kind==="local";
     return {i,ch,name:local?"You":(e.name||ch.name),color:col,human:local,remote:e.kind==="remote",peer:e.peer||null,score:0,
     speed:SPEED*(1+(ch.fart-3)*0.06), turn:TURN*(1+(ch.smid-3)*0.12), charge:BOOST_BASE*(1-(ch.boost-3)*0.15),
-    boost:0,bt:-1,streakT:0,netT:new THREE.Vector3(),netHas:false,netJ:0,netB:0,left:false,forceOut:false,np:null,nh:null,ny:0,
+    boost:0,bt:-1,streakT:0,netT:new THREE.Vector3(),netHas:false,netJ:0,netB:0,left:false,forceOut:false,np:null,nh:null,ny:0,sb:[],pq:[],log:[],off:null,dieT:null,
     p:new THREE.Vector3(),h:new THREE.Vector3(),y:0,jt:-1,cool:0,acc:0,alive:true,rank:0,
     turnCmd:0,think:0,jumpBuf:0,stride:0,stepN:0,trail:new Trail(col),fig:makeFigure(ch,local,null,col)};});
 }
@@ -940,8 +940,8 @@ function botThink(b){
 // ---------- Input ----------
 const ptrs=new Map(); let joyId=null, joyX=0, joyY=0, joyDX=0, joyDY=0;
 const keys=new Set();
-function tryJump(){const me=meP(); if(!me||!me.alive) return; if(Net.role==="client") clientJump(); else me.jumpBuf=0.14;}
-function pressBoost(){if(state!=="play") return; if(Net.role==="client") clientBoost(); else useBoost(meP());}
+function tryJump(){const me=meP(); if(!me||!me.alive) return; me.jumpBuf=0.14;}
+function pressBoost(){if(state!=="play") return; useBoost(meP());}
 // One finger does everything: hold and drag = steer, quick tap = jump, quick flick up = boost.
 // A fast upward start is held back from steering for a moment so a flick doesn't yank the runner.
 const FLICK_MS=170;
@@ -1076,6 +1076,7 @@ function stepPlayer(pl,dt){
 function dropPoint(pl){
   const r=R+pl.y+TR;
   pl.trail.add(pl.p.x*r,pl.p.y*r,pl.p.z*r,pl.h.x,pl.h.y,pl.h.z,pl.i);
+  if(Net.role) pl.log.push([pl.p.x*r,pl.p.y*r,pl.p.z*r,performance.now()]); // online: what gets shared with the others
 }
 const projV=new THREE.Vector3();
 function spatialAt(v){projV.copy(v).project(camera); const n=v.clone().normalize();
@@ -1088,22 +1089,22 @@ function simStep(dt){
   if(state==="count"){stateT-=dt; if(stateT<=0){state="play";if(Net.role==="host")broadcast({t:"go"});Sound.count(0);Sound.setMode("play");showMsg("Go!","");setTimeout(()=>{const m=meP();if(state==="play"&&m&&m.alive)hideMsg();},550);} return;}
   if(state!=="play") return;
   const alive=players.filter(p=>p.alive);
-  for(const pl of alive) stepPlayer(pl,dt);
+  for(const pl of alive) if(!pl.remote) stepPlayer(pl,dt);
   const dead=[];
   for(const pl of alive){
-    if(pl.forceOut||hitsTrail(pl.p.x,pl.p.y,pl.p.z,pl.y,pl.i,pl.trail.n-1-GRACE)) dead.push(pl);
+    if(pl.forceOut||(!pl.remote&&hitsTrail(pl.p.x,pl.p.y,pl.p.z,pl.y,pl.i,pl.trail.n-1-GRACE))) dead.push(pl);
   }
+  // head-on bumps: each device only decides for the runners it simulates itself
   for(let a=0;a<alive.length;a++)for(let b=a+1;b<alive.length;b++){
-    const A=alive[a],B=alive[b];
-    tmpC.copy(A.p).multiplyScalar(R+A.y+HP/2).sub(tmpB.copy(B.p).multiplyScalar(R+B.y+HP/2));
-    if(tmpC.length()<PR*2.2){if(!dead.includes(A))dead.push(A); if(!dead.includes(B))dead.push(B);}
+    const A=alive[a],B=alive[b]; if(A.remote&&B.remote) continue;
+    if(bump(A,B)){if(!A.remote&&!dead.includes(A))dead.push(A); if(!B.remote&&!dead.includes(B))dead.push(B);}
   }
   if(dead.length){
     const rank=alive.length-dead.length+1;
     for(const pl of dead){pl.alive=false;pl.rank=rank;pl.fig.visible=false;burst(pl.p.clone(),pl.y,pl.color);onCrash(pl);if(Net.role==="host")broadcast({t:"dead",i:pl.i,rank,T:performance.now()});
       if(pl.human){Sound.setMode("dead");showMsg("You're out",placeText(rank)+" this round");}}
     const left=alive.length-dead.length;
-    const mm=meP(); if(mm&&!mm.alive&&left>=2) ffBtn.hidden=false;
+    const mm=meP(); if(mm&&!mm.alive&&left>=2&&!Net.role) ffBtn.hidden=false;
     renderChips();
     if(left<=1){
       for(const pl of players) if(pl.alive) pl.rank=1;
@@ -1111,6 +1112,7 @@ function simStep(dt){
     }
   }
 }
+function bump(A,B){tmpC.copy(A.p).multiplyScalar(R+A.y+HP/2).sub(tmpB.copy(B.p).multiplyScalar(R+B.y+HP/2)); return tmpC.length()<PR*2.2;}
 function placeText(r){return ["","1st","2nd","3rd","4th"][r]+" place";}
 const pointsFor=r=>r===1?4:r===2?2:1;
 
@@ -1201,13 +1203,13 @@ function startRound(){
     tmpA.set(Math.random()-.5,Math.random()-.5,Math.random()-.5);
     pl.h.copy(tmpA).addScaledVector(pl.p,-tmpA.dot(pl.p)).normalize();
     pl.y=0;pl.jt=-1;pl.cool=0;pl.acc=0;pl.alive=true;pl.rank=0;pl.turnCmd=0;pl.think=Math.random()*0.1;pl.jumpBuf=0;pl.stride=0;pl.stepN=0;
-    pl.boost=1;pl.bt=-1;pl.netHas=false;
-    pl.trail.reset(); pl.fig.visible=true; dropPoint(pl);
+    pl.boost=1;pl.bt=-1;pl.netHas=false;pl.sb=[];pl.pq=[];pl.log=[];pl.dieT=null;pl.forceOut=!!pl.left;
+    pl.trail.reset(); pl.fig.visible=true; if(!pl.remote) dropPoint(pl);
   });
   const me0=meP()||players[0]; camC.copy(me0.p); camU.copy(me0.h);
   state="count"; stateT=3; Sound.setMode("count"); renderChips();
   roundTag.textContent=`Round ${round} · first to ${POINTS_TO_WIN}`;
-  if(Net.role==="host"){Net.sent=players.map(()=>0); Net.sendAcc=1;
+  if(Net.role==="host"){Net.tpSent=new Map(); Net.sendAcc=1;
     broadcast({t:"round",round,pl:players.map(p=>[...p.p.toArray(),...p.h.toArray()].map(r3))});}
 }
 let celeb=null;
@@ -1411,7 +1413,7 @@ Sound.init();
 // The host's phone runs the whole simulation. Guests send only their stick direction and
 // jump/boost presses; the host streams back positions, trail points and events ~30 times a second.
 const Net={uconns:new Map(),uConn:null,seq:0,inQ:0,snaps:[],off:null,evq:[],phase:"lobby",rr:new Set(),rrDeadline:0,rrOrder:null,role:null,peer:null,conns:new Map(),hostConn:null,code:"",myId:null,roster:[],inMatch:false,
-  sendAcc:0,sent:[],j:0,b:0,lastKey:undefined,lastIn:0,timer:0};
+  sendAcc:0,tpSent:new Map(),mySent:0,timer:0};
 const CODE_CH="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cleanName=s=>(String(s||"").replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g,"").trim().slice(0,12))||"Player";
@@ -1607,15 +1609,17 @@ function hostData(conn,d){
     r.char=charById(d.char).id; r.ready=!!d.ready; hostAfterPick(); return;
   }
   if(d.t==="rready"){ if(state==="panel"&&Net.rrDeadline){Net.rr.add(conn.peer); broadcast({t:"rr",ids:[...Net.rr]}); panelReady();} return; }
-  if(d.t==="in"){
-    const pl=players.find(p=>p.peer===conn.peer); if(!pl||!pl.alive) return;
-    if(Array.isArray(d.d)&&d.d.length===3&&d.d.every(Number.isFinite)){
-      pl.netT.set(d.d[0],d.d[1],d.d[2]); pl.netT.addScaledVector(pl.p,-pl.netT.dot(pl.p));
-      pl.netHas=pl.netT.lengthSq()>1e-6; if(pl.netHas) pl.netT.normalize();
-    } else pl.netHas=false;
-    if(Number.isFinite(d.q)){ if(d.q<=(pl.netQ||0)) return; pl.netQ=d.q; }  // ignore stale input from the fast lane
-    if(Number.isFinite(d.j)&&d.j>pl.netJ){pl.netJ=d.j; pl.jumpBuf=0.14;}
-    if(Number.isFinite(d.b)&&d.b>pl.netB){pl.netB=d.b; if(state==="play") useBoost(pl);}
+  if(d.t==="st"||d.t==="tp"||d.t==="die"){
+    const pl=players.find(p=>p.peer===conn.peer); if(!pl||d.r!==round||!Number.isFinite(d.T)) return;
+    pl.off=offSample(pl.off,d.T-performance.now());
+    if(d.t==="st"){ if(validState(d.a)) sbPush(pl,d.T,d.a); return; }
+    if(d.t==="tp"){ if(!Array.isArray(d.p)) return; let idx=d.s|0;
+      for(let q=0;q+3<d.p.length;q+=4,idx++){ if(idx<pl.log.length) continue; if(idx>pl.log.length) break;
+        const x=+d.p[q],y=+d.p[q+1],z=+d.p[q+2],T=+d.p[q+3]; if(![x,y,z,T].every(Number.isFinite)) break;
+        pl.log.push([x,y,z,T-pl.off]); pl.pq.push([idx,x,y,z,T]);}
+      return; }
+    if(d.t==="die"&&pl.alive&&state==="play") pl.dieT=d.T; // shown here once our view of them catches up
+    return;
   }
 }
 function hostDrop(id){
@@ -1640,17 +1644,27 @@ function hostStartMatch(){
 function hostTick(dt){
   if(Net.role!=="host"||!Net.inMatch||!players.length) return;
   Net.sendAcc+=dt; if(Net.sendAcc<1/30) return; Net.sendAcc=0;
-  const pl=[], tr=[];
-  players.forEach((p,i)=>{
-    pl.push([r3(p.p.x),r3(p.p.y),r3(p.p.z),r3(p.h.x),r3(p.h.y),r3(p.h.z),r2(p.y),(p.jt>=0?2:0)|(p.bt>=0?4:0),r2(p.boost)]);
-    const from=Net.sent[i]||0, n=p.trail.n;
-    if(n>from){const P=p.trail.pts, a=[from]; for(let k=from;k<n;k++) a.push(r2(P[k*3]),r2(P[k*3+1]),r2(P[k*3+2])); tr.push(a); Net.sent[i]=n;}
-    else tr.push(null);
+  const now=performance.now(), Tn=Math.round(now);
+  // positions: our own runners as they are now, guests as they last reported (in our clock)
+  const pl=players.map(p=>{
+    if(!p.remote) return [r3(p.p.x),r3(p.p.y),r3(p.p.z),r3(p.h.x),r3(p.h.y),r3(p.h.z),r2(p.y),(p.jt>=0?2:0)|(p.bt>=0?4:0),r2(p.boost),Tn];
+    const L=p.sb.length?p.sb[p.sb.length-1]:null; if(!L||p.off==null) return null;
+    return [...L.a.slice(0,9),Math.round(L.T-p.off)];
   });
-  const msg={t:"s",T:performance.now(),r:round,q:++Net.seq,pl,tr};
-  for(const [id,c] of Net.conns){const u=Net.uconns.get(id); const via=(u&&u.open)?u:c; if(via.open){try{via.send(msg);}catch(_){}}}
+  const msg={t:"s",T:now,r:round,q:++Net.seq,pl};
+  for(const [id,c] of Net.conns){
+    if(!c.open) continue;
+    const u=Net.uconns.get(id); const via=(u&&u.open)?u:c; try{via.send(msg);}catch(_){}
+    // tube points ride the reliable lane, so none can go missing; each guest already has its own
+    let sent=Net.tpSent.get(id); if(!sent){sent=players.map(()=>0); Net.tpSent.set(id,sent);}
+    const d=[];
+    players.forEach((p,i)=>{ if(p.peer===id) return; const L=p.log, from=sent[i]; if(L.length<=from) return;
+      const a=[i,from]; for(let k=from;k<L.length;k++){const q=L[k]; a.push(r2(q[0]),r2(q[1]),r2(q[2]),Math.round(q[3]));}
+      sent[i]=L.length; d.push(a);});
+    if(d.length){try{c.send({t:"tp",r:round,d});}catch(_){}}
+  }
 }
-function hostFx(k,pl){if(Net.role==="host"&&Net.inMatch) broadcast({t:"fx",k,i:pl.i,T:performance.now()});}
+function hostFx(){} // jumps/boosts now travel inside the position stream, so everyone hears them in sync
 
 // ----- guest -----
 function clientJoin(code){
@@ -1704,10 +1718,13 @@ function clientData(d){
     case "go": if(state==="count"){state="play"; Sound.count(0); Sound.setMode("play"); showMsg("Go!","");
         setTimeout(()=>{const m=meP(); if(state==="play"&&m&&m.alive) hideMsg();},550);} break;
     case "s": clientState(d); break;
+    case "tp": if(d.r===round&&Array.isArray(d.d)) for(const a of d.d){ if(!Array.isArray(a)) continue; const pl=players[a[0]]; if(!pl||pl.human) continue;
+        for(let q=2,idx=a[1]|0;q+3<a.length;q+=4,idx++) pl.pq.push([idx,+a[q],+a[q+1],+a[q+2],+a[q+3]]);} break;
     case "fx": if(Number.isFinite(d.T)&&!d._q){d._q=1; Net.evq.push(d); break;} {const pl=players[d.i]; if(!pl) break;
       if(d.k==="j") onJump(pl); else if(d.k==="l") onLand(pl); else if(d.k==="b"){ if(pl.human){Sound.boost(0,1); fovKick=1;} else {const s=spatial(pl); if(s.vol>0.4) Sound.boost(s.pan,s.vol*0.45);} }
       break;}
-    case "dead": if(Number.isFinite(d.T)&&!d._q){d._q=1; Net.evq.push(d); break;} {const pl=players[d.i]; if(!pl||!pl.alive) break;
+    case "dead": {const me=players[d.i]; if(me&&me.human&&!me.alive){me.rank=d.rank|0; if(state==="play"&&!msg.hidden) msgSmall.hidden=false, msgSmall.textContent=placeText(me.rank)+" this round"; renderChips(); break;}}
+      if(Number.isFinite(d.T)&&!d._q){d._q=1; Net.evq.push(d); break;} {const pl=players[d.i]; if(!pl||!pl.alive) break;
       pl.alive=false; pl.rank=d.rank|0; pl.fig.visible=false; burst(pl.p.clone(),pl.y,pl.color); onCrash(pl);
       if(pl.human){Sound.setMode("dead"); showMsg("You're out",placeText(pl.rank)+" this round");}
       renderChips(); break;}
@@ -1715,31 +1732,76 @@ function clientData(d){
   }
 }
 function clientRound(d){
-  Net.rrDeadline=0; Net.snaps=[]; Net.evq=[]; players.forEach(p=>{p.pend=new Map();});
+  Net.rrDeadline=0; Net.evq=[]; Net.mySent=0; Net.sendAcc=1;
   round=d.round|0; panel.hidden=true; stopRain(); celeb=null; hideMsg(); grid.clear();
   hud.hidden=false; roundTag.hidden=false;
   players.forEach((pl,i)=>{const a=d.pl&&d.pl[i]; if(!a) return;
-    pl.p.set(a[0],a[1],a[2]).normalize(); pl.h.set(a[3],a[4],a[5]).normalize(); pl.np=pl.p.clone(); pl.nh=pl.h.clone(); pl.ny=0;
-    pl.y=0; pl.jt=-1; pl.bt=-1; pl.boost=1; pl.alive=true; pl.rank=0; pl.stride=0; pl.stepN=0; pl.trail.reset(); pl.fig.visible=true;});
-  const m=meP(); if(m){camC.copy(m.p); camU.copy(m.h);}
-  joyAng=null; Net.lastKey=undefined;
+    pl.p.set(a[0],a[1],a[2]).normalize(); pl.h.set(a[3],a[4],a[5]).normalize(); pl.sb=[]; pl.pq=[]; pl.log=[];
+    pl.y=0; pl.jt=-1; pl.bt=-1; pl.cool=0; pl.acc=0; pl.jumpBuf=0; pl.asT=0; pl.asCmd=0; pl.boost=1; pl.alive=true; pl.rank=0; pl.stride=0; pl.stepN=0;
+    pl.trail.reset(); pl.fig.visible=true;});
+  const m=meP(); if(m){camC.copy(m.p); camU.copy(m.h); dropPoint(m);}
+  joyAng=null;
   state="count"; stateT=3; Sound.setMode("count"); renderChips();
   roundTag.textContent=`Round ${round} · first to ${POINTS_TO_WIN}`;
 }
-const INTERP=110;   // ms behind the host: room for ~3 snapshots, so late or lost packets never show
+// ----- shared online helpers -----
+// Every device runs its own runner itself (no waiting on the network for steering or jumps)
+// and shows everyone else slightly in the past, smoothly, from their reports.
+const INTERP=100;   // ms: room for ~3 reports, so a late or lost packet never shows
+const offSample=(o,s)=>(o==null||s>o)?s:o+(s-o)*0.02;  // clock offset: trust the fastest delivery, drift slowly
+const validState=a=>Array.isArray(a)&&a.length>=9&&a.slice(0,9).every(Number.isFinite);
+function sbPush(pl,T,a){
+  const sb=pl.sb; let k=sb.length;
+  while(k>0&&sb[k-1].T>T) k--;
+  if(k>0&&sb[k-1].T===T) return;
+  sb.splice(k,0,{T,a}); if(sb.length>40) sb.splice(0,sb.length-40);
+}
+const _np=new THREE.Vector3(), _pa=new THREE.Vector3(), _pb=new THREE.Vector3(), _ha=new THREE.Vector3(), _hb=new THREE.Vector3();
+function proxyApply(pl,rt,dt){
+  const sb=pl.sb;
+  if(sb.length&&pl.fig.visible){
+    let k=sb.findIndex(x=>x.T>=rt), A, B;
+    if(k<0){A=B=sb[sb.length-1];} else if(k===0){A=B=sb[0];} else {A=sb[k-1]; B=sb[k];}
+    const f=B.T>A.T?Math.min(1,Math.max(0,(rt-A.T)/(B.T-A.T))):1, a=A.a, b=B.a;
+    _np.copy(pl.p);
+    _pa.set(a[0],a[1],a[2]); _pb.set(b[0],b[1],b[2]); pl.p.copy(_pa).lerp(_pb,f).normalize();
+    _ha.set(a[3],a[4],a[5]); _hb.set(b[3],b[4],b[5]); pl.h.copy(_ha).lerp(_hb,f); pl.h.addScaledVector(pl.p,-pl.h.dot(pl.p)); if(pl.h.lengthSq()>1e-8) pl.h.normalize();
+    pl.y=a[6]+(b[6]-a[6])*f;
+    // ran out of reports: keep them running straight for a moment instead of freezing
+    if(k<0&&state==="play"&&pl.alive){const late=Math.min(0.15,(rt-A.T)/1000); if(late>0) advance(pl.p,pl.h,pl.speed*late);}
+    const F=f<0.5?a:b, jt=(F[7]&2)?0:-1, bt=(F[7]&4)?0:-1;
+    if(state==="play"&&pl.alive){
+      if(jt>=0&&pl.jt<0) onJump(pl);
+      if(bt>=0&&pl.bt<0){const s=spatial(pl); if(s.vol>0.4) Sound.boost(s.pan,s.vol*0.45);}
+      const moved=_np.distanceTo(pl.p)*R;
+      if(moved<3){pl.stride+=moved; if(bt>=0){pl.streakT-=dt; if(pl.streakT<=0){pl.streakT=0.03; streak(pl);}}}
+    }
+    pl.jt=jt; pl.bt=bt; pl.boost=F[8];
+    while(sb.length>2&&sb[1].T<rt-200) sb.shift();
+  }
+  // tube points appear when the shown runner gets there
+  const pq=pl.pq;
+  while(pq.length&&pq[0][4]<=rt){const q=pq.shift(); if(q[0]!==pl.trail.n) continue;
+    if(![q[1],q[2],q[3]].every(Number.isFinite)) continue; pl.trail.add(q[1],q[2],q[3],pl.h.x,pl.h.y,pl.h.z,pl.i);}
+}
+function proxyFrame(dt){
+  if(!Net.role||!Net.inMatch||!players.length) return;
+  const now=performance.now();
+  if(Net.role==="client"&&Net.evq.length&&Net.off!=null){ // crashes and round end, timed to what we show
+    const rt=now+Net.off-INTERP; Net.evq.sort((a,b)=>a.T-b.T); while(Net.evq.length&&Net.evq[0].T<=rt) clientData(Net.evq.shift());}
+  for(const pl of players){
+    if(Net.role==="client"?pl.human:!pl.remote) continue;
+    const off=Net.role==="client"?Net.off:pl.off; if(off==null) continue;
+    const rt=now+off-INTERP;
+    proxyApply(pl,rt,dt);
+    if(pl.dieT!=null&&rt>=pl.dieT){pl.dieT=null; if(pl.alive&&state==="play") pl.forceOut=true;}
+  }
+}
+// ----- guest -----
 function clientState(d){
   if(!Array.isArray(d.pl)||!Number.isFinite(d.T)||d.r!==round) return;
-  // clock offset host->local: keep the fastest delivery seen, drift slowly otherwise
-  const sample=d.T-performance.now();
-  if(Net.off===null||sample>Net.off) Net.off=sample; else Net.off+=(sample-Net.off)*0.02;
-  const sn=Net.snaps; let k=sn.length;
-  while(k>0&&sn[k-1].T>d.T) k--;
-  if(k>0&&sn[k-1].T===d.T) return;
-  sn.splice(k,0,d); if(sn.length>40) sn.splice(0,sn.length-40);
-  // trail points wait until the rendered time reaches them
-  players.forEach((pl,i)=>{const t=d.tr&&d.tr[i]; if(!Array.isArray(t)||t.length<4) return;
-    if(!pl.pend) pl.pend=new Map();
-    for(let q=1,idx=t[0];q+2<t.length;q+=3,idx++) if(idx>=pl.trail.n) pl.pend.set(idx,[t[q],t[q+1],t[q+2],d.T]);});
+  Net.off=offSample(Net.off,d.T-performance.now());
+  players.forEach((pl,i)=>{const e=d.pl[i]; if(pl.human||!validState(e)||!Number.isFinite(e[9])) return; sbPush(pl,e[9],e);});
 }
 function clientEnd(d){
   players.forEach((pl,i)=>{if(Array.isArray(d.r)) pl.rank=d.r[i]|0; if(Array.isArray(d.s)) pl.score=d.s[i]|0;
@@ -1751,51 +1813,36 @@ function clientEnd(d){
   Sound.setMode("count"); Sound.roundEnd(winners.length!==1?0:winners[0].human?1:-1);
   renderChips();
 }
-// guests: smooth toward the host's latest snapshot, and send the stick when it changes
-const _np=new THREE.Vector3(), _pa=new THREE.Vector3(), _pb=new THREE.Vector3(), _ha=new THREE.Vector3(), _hb=new THREE.Vector3();
+// the guest's own runner: simulated right here, exactly like the host's
+function clientSim(dt){
+  const me=meP(); if(state!=="play"||!me||!me.alive) return;
+  stepPlayer(me,dt);
+  let hit=hitsTrail(me.p.x,me.p.y,me.p.z,me.y,me.i,me.trail.n-1-GRACE);
+  if(!hit) for(const o of players) if(o!==me&&o.alive&&o.fig.visible&&bump(me,o)){hit=true; break;}
+  if(hit) clientDie(me);
+}
+function clientDie(me){
+  me.alive=false; me.fig.visible=false; burst(me.p.clone(),me.y,me.color); onCrash(me);
+  Sound.setMode("dead"); showMsg("You're out",""); renderChips();
+  clientSend(true);
+  const c=Net.hostConn; if(c&&c.open){try{c.send({t:"die",r:round,T:performance.now()});}catch(_){}}
+}
+function clientSend(force){
+  const me=meP(), c=Net.hostConn; if(!me||!c||!c.open) return;
+  const now=performance.now();
+  if(me.alive&&state==="play"){
+    const st={t:"st",r:round,T:now,a:[r3(me.p.x),r3(me.p.y),r3(me.p.z),r3(me.h.x),r3(me.h.y),r3(me.h.z),r2(me.y),(me.jt>=0?2:0)|(me.bt>=0?4:0),r2(me.boost)]};
+    const u=Net.uConn; try{(u&&u.open?u:c).send(st);}catch(_){}
+  }
+  const L=me.log, from=Net.mySent||0;
+  if(L.length>from){const p=[]; for(let k=from;k<L.length;k++){const q=L[k]; p.push(r2(q[0]),r2(q[1]),r2(q[2]),Math.round(q[3]));}
+    Net.mySent=L.length; try{c.send({t:"tp",r:round,T:now,s:from,p});}catch(_){}}
+}
 function clientTick(dt){
   if(Net.role!=="client"||!players.length) return;
   if(state==="count") stateT=Math.max(0.001,stateT-dt);
-  const now=performance.now(), rt=now+(Net.off||0)-INTERP;
-  // events (jumps, crashes, round end) fire when the rendered time reaches them
-  if(Net.evq.length){Net.evq.sort((a,b)=>a.T-b.T); while(Net.evq.length&&Net.evq[0].T<=rt) clientData(Net.evq.shift());}
-  const sn=Net.snaps;
-  if(sn.length){
-    let b=sn.findIndex(x=>x.T>=rt); let a;
-    if(b<=0){a=sn[Math.max(0,b)]; b=a;} else {a=sn[b-1]; b=sn[b];}
-    if(b===undefined){b=sn[sn.length-1]; a=b;}
-    const f=b.T>a.T?Math.min(1,Math.max(0,(rt-a.T)/(b.T-a.T))):1;
-    players.forEach((pl,i)=>{
-      const A=a.pl[i], B=b.pl[i]; if(!Array.isArray(A)||!Array.isArray(B)) return;
-      _np.copy(pl.p);
-      _pa.set(A[0],A[1],A[2]); _pb.set(B[0],B[1],B[2]); pl.p.copy(_pa).lerp(_pb,f).normalize();
-      _ha.set(A[3],A[4],A[5]); _hb.set(B[3],B[4],B[5]); pl.h.copy(_ha).lerp(_hb,f); pl.h.addScaledVector(pl.p,-pl.h.dot(pl.p)); if(pl.h.lengthSq()>1e-8) pl.h.normalize();
-      pl.y=A[6]+(B[6]-A[6])*f;
-      const F=f<0.5?A:B; pl.jt=(F[7]&2)?0:-1; pl.bt=(F[7]&4)?0:-1; pl.boost=F[8];
-      const moved=_np.distanceTo(pl.p)*R;
-      if(pl.alive&&state==="play"&&moved<3){
-        pl.stride+=moved; const s2=Math.floor(pl.stride/STEP_LEN);
-        if(s2!==pl.stepN){pl.stepN=s2; if(pl.human&&pl.jt<0) Sound.step();}
-        if(pl.bt>=0){pl.streakT-=dt; if(pl.streakT<=0){pl.streakT=0.03; streak(pl);}}
-      }
-      if(pl.pend) while(pl.pend.has(pl.trail.n)&&pl.pend.get(pl.trail.n)[3]<=rt){
-        const q=pl.pend.get(pl.trail.n); pl.pend.delete(pl.trail.n); pl.trail.add(q[0],q[1],q[2],pl.h.x,pl.h.y,pl.h.z,pl.i);}
-    });
-    while(sn.length>2&&sn[1].T<rt-200) sn.shift();
-  }
-  const me=meP();
-  if(state==="play"&&me&&me.alive){
-    const d=me.jt<0?humanDesired(me):null;
-    const key=d?joyAng:null;
-    if(key!==Net.lastKey||now-Net.lastIn>300){
-      Net.lastKey=key; Net.lastIn=now;
-      const msg={t:"in",q:++Net.inQ,d:d?[r3(d.x),r3(d.y),r3(d.z)]:null,j:Net.j,b:Net.b};
-      const u=Net.uConn; if(u&&u.open){try{u.send(msg);}catch(_){toHost(msg);}} else toHost(msg);
-    }
-  }
+  Net.sendAcc+=dt; if(Net.sendAcc>=1/30){Net.sendAcc=0; clientSend();}
 }
-function clientJump(){Net.j++; Net.lastIn=0;}
-function clientBoost(){const me=meP(); if(me&&me.boost>=1){Net.b++; Net.lastIn=0;}}
 
 // ----- wiring -----
 $("createBtn").onclick=()=>{Sound.click(); pendingCode=""; hostCreate();};
@@ -1890,6 +1937,7 @@ function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
   acc+=dt*timeScale; let steps=0;
   if(paused) acc=0; else if(Net.role!=="client") while(acc>=DT && steps<48){simStep(DT);acc-=DT;steps++;}
+  else if(state==="play") while(acc>=DT && steps<48){clientSim(DT);acc-=DT;steps++;}
   else acc=0;
   if(steps>=48) acc=0;
   if(state==="count"){const n=Math.ceil(stateT); if(n!==lastCount){lastCount=n;Sound.count(n);showMsg(String(n),"");}}
@@ -1897,7 +1945,7 @@ function frame(now){
   if(state==="ending"&&!paused){stateT-=dt; if(stateT<=0) showPanel();}
   {const gs=$("globalSound"), hb=$("homeBtn"), showHome=hud.hidden&&state!=="menu"&&$("pause").hidden;
    if(gs.hidden!==!hud.hidden) gs.hidden=!hud.hidden; if(hb.hidden!==!showHome) hb.hidden=!showHome;}
-  clientTick(dt); hostTick(dt); hostRoundTick();
+  clientTick(dt); proxyFrame(dt); hostTick(dt); hostRoundTick();
   if(state==="panel"&&Net.rrDeadline&&$("rrStatus")){Net._rrT=(Net._rrT||0)+dt; if(Net._rrT>0.25){Net._rrT=0; panelReady();}}
   for(const pl of players) pl.trail.flush();
   tickCeleb(dt); syncFigures(); tickFx(dt); updateCamera(dt); syncBoostUI(); tickRain(dt);
