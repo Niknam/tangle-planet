@@ -110,12 +110,20 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .move{font-size:11px;margin-left:6px;font-variant-numeric:tabular-nums}
 .move.up{color:var(--up)} .move.down{color:var(--down)}
 .chip.me{border-color:var(--me,var(--you))}
+#toast{position:absolute;left:50%;top:calc(env(safe-area-inset-top,0px) + 54px);z-index:8;max-width:calc(100% - 32px);box-sizing:border-box;
+  padding:9px 16px;border-radius:999px;background:var(--card-solid);border:1px solid var(--line);box-shadow:0 8px 24px rgba(0,0,0,.4);
+  font-weight:800;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none;
+  opacity:0;transform:translate(-50%,-10px);transition:opacity .25s,transform .25s cubic-bezier(.2,.8,.2,1)}
+#toast.on{opacity:1;transform:translate(-50%,0)}
 /* match winner: gold frame, a slow glow and a light sweep, crown pops in once the totals have counted up */
-#results li.win{position:relative;overflow:hidden;border-color:#ffd23f;background:rgba(255,210,63,.07);animation:winGlow 2.4s ease-in-out .9s infinite}
-@keyframes winGlow{50%{box-shadow:0 0 18px rgba(255,210,63,.35),inset 0 0 14px rgba(255,210,63,.12)}}
-#results li.win::after{content:"";position:absolute;inset:0;pointer-events:none;transform:translateX(-100%);
-  background:linear-gradient(105deg,transparent 35%,rgba(255,240,190,.3) 50%,transparent 65%);animation:winShine 2.4s ease-in-out .9s infinite}
-@keyframes winShine{0%{transform:translateX(-100%)}45%,100%{transform:translateX(100%)}}
+#results li.win{position:relative;border-color:transparent;animation:winGlow 2.4s ease-in-out .9s infinite}
+@keyframes winGlow{50%{box-shadow:0 0 16px rgba(255,210,63,.3)}}
+/* gold frame with a bright glint that runs around it */
+#results li.win::after{content:"";position:absolute;inset:-1px;border-radius:inherit;padding:2px;pointer-events:none;
+  background:linear-gradient(110deg,#e9b416 0%,#ffd23f 42%,#fffbe8 50%,#ffd23f 58%,#e9b416 100%);background-size:300% 100%;background-position:100% 0;
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+  animation:winShine 2.4s ease-in-out .9s infinite}
+@keyframes winShine{0%{background-position:100% 0}55%,100%{background-position:0 0}}
 #results li.win .crown{display:inline-block;animation:crownPop .55s cubic-bezier(.2,1.8,.4,1) .9s both}
 @keyframes crownPop{from{transform:scale(0) rotate(-25deg);opacity:0}}
 .tools{display:flex;gap:6px;pointer-events:auto;position:relative;z-index:6}
@@ -139,7 +147,6 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 #rain{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 #msgBig.cheer{animation:cheer .75s cubic-bezier(.2,1.7,.4,1) both}
 @keyframes cheer{0%{transform:scale(.2) rotate(-10deg);opacity:0}100%{transform:none;opacity:1}}
-h2.champTitle{animation:cheer .8s cubic-bezier(.2,1.7,.4,1) both}
 .crown{width:20px;height:14px;margin-right:5px;vertical-align:-1px}
 h1{font-size:44px}
 .logo{margin:-6px -8px 2px}
@@ -283,6 +290,7 @@ input::placeholder{color:var(--muted);opacity:.6}
     </div>
   </div>
   <div id="roundTag" hidden></div>
+  <div id="toast" role="status" aria-live="polite"></div>
 
   <div id="msg" hidden>
     <div id="msgBig"></div>
@@ -398,6 +406,7 @@ input::placeholder{color:var(--muted);opacity:.6}
       <h2 id="noticeTitle">The host left the game</h2>
       <p class="lead" id="noticeText">The match can't continue without the host.</p>
       <button class="btn" id="noticeBtn" type="button">Back to home</button>
+      <button class="btn ghost" id="noticeAlt" type="button" hidden>Home</button>
     </div>
   </section>
 
@@ -646,8 +655,8 @@ const Sound=(function(){
     if(mode==="menu" ? s%4===0 : ARP_ON[s]) arp(t,ch.p[ARP[s]]+12,mode==="menu"?0.05:0.06);
     if(drums){
       if(s===0||s===8||(s===10&&b%2===1)) kick(t);
-      if(s===4||s===12) clap(t);
-      if(s%4===2) hat(t,0.045); else if(s%2===1) hat(t,0.018);
+      if(s===4||s===12) snare(t);
+      if(s%4===2) hat(t,0.016);
     }
   }
   function pad(t,ch){
@@ -670,15 +679,17 @@ const Sound=(function(){
     osc({type:"triangle",f,t,dur:0.22,g:g*0.6,dest:delayIn});
   }
   function kick(t){ osc({f:150,f2:42,t,dur:0.34,g:0.5,a:0.002,dest:musicBus}); noise({t,dur:0.02,g:0.05,type:"highpass",f:3000,dest:musicBus}); }
-  function clap(t){ for(const o of [0,0.011,0.023]) noise({t:t+o,dur:0.07,g:0.07,f:1400,q:0.8,dest:musicBus});
-    noise({t:t+0.03,dur:0.22,g:0.035,f:1600,q:0.6,dest:musicBus}); }
-  function hat(t,g){ noise({t,dur:0.045,g,type:"highpass",f:7500,q:0.7,dest:musicBus}); }
+  // soft, round backbeat: a little body tone plus a short, darkened brush of noise
+  function snare(t){ osc({type:"triangle",f:200,f2:150,t,dur:0.12,g:0.07,a:0.002,dest:musicBus});
+    noise({t,dur:0.14,g:0.04,type:"lowpass",f:2600,f2:900,q:0.5,a:0.002,dest:musicBus}); }
+  // quiet shaker on the off-beats, kept out of the sharp top end
+  function hat(t,g){ noise({t,dur:0.04,g,type:"bandpass",f:5200,q:0.9,a:0.004,dest:musicBus}); }
 
   function applyMode(instant){ if(!ctx) return; const t=ctx.currentTime;
     musicBus.gain.cancelScheduledValues(t);
     musicBus.gain.setTargetAtTime(musicOn?(mode==="menu"?0.42:0.55):0,t,instant?0.01:0.35);
     musicTone.frequency.cancelScheduledValues(t);
-    musicTone.frequency.setTargetAtTime(mode==="dead"?600:(mode==="menu"?4500:16000),t,0.25);
+    musicTone.frequency.setTargetAtTime(mode==="dead"?600:(mode==="menu"?4500:8000),t,0.25);
   }
   return {init,step,jump,land,crash,count,roundEnd,matchEnd,click,whoosh,tally,boost,boostReady,pop,
     setMode(m){mode=m;applyMode();},
@@ -1229,7 +1240,7 @@ function beginMatch(list){
   const me=meP(); $("app").style.setProperty("--me",hexc(me?me.color:CHARS[3].color));
   try{navigator.wakeLock&&navigator.wakeLock.request("screen").catch(()=>{});}catch(_){}
   hideSheets(); $("menuNote").hidden=true; hud.hidden=false; roundTag.hidden=false;
-  Net.inMatch=!!Net.role; Net.j=0; Net.b=0;
+  Net.inMatch=!!Net.role; Net.done=false;
   if(Net.role==="client"){state="wait"; showMsg("Get ready","");} else startRound();
 }
 function startRound(){
@@ -1308,6 +1319,7 @@ function showPanel(){
       countUp(li.querySelector(".tot"),pl.score-gain,pl.score);},450);
   }
   if(!reduce) panelTimer=setTimeout(()=>{if(state==="panel")Sound.tally();},450);
+  Net.done=matchOver;
   const pb=$("panelBtns");
   Net.rrDeadline=0; $("rrStatus")&&$("rrStatus").remove();
   if(Net.role&&!matchOver){
@@ -1414,12 +1426,17 @@ function renderPause(){
 }
 function closePause(){$("pause").hidden=true; paused=false;}
 function goHome(){closePause(); leaveOnline(); toMenu();}
-function openNotice(label,title,text){
+// opts.main / opts.alt: {text, fn}; without them the single button goes home
+function openNotice(label,title,text,opts){
   hideSheets(); hud.hidden=true; roundTag.hidden=true; boostBar.hidden=true; hideMsg(); stopRain(); celeb=null;
   state="notice"; $("noticeLabel").textContent=label; $("noticeTitle").textContent=title; $("noticeText").textContent=text;
+  const main=(opts&&opts.main)||{text:"Back to home",fn:goHome}, alt=opts&&opts.alt, nb=$("noticeBtn"), na=$("noticeAlt");
+  nb.textContent=main.text; nb.onclick=()=>{Sound.click(); main.fn();};
+  na.hidden=!alt; if(alt){na.textContent=alt.text; na.onclick=()=>{Sound.click(); alt.fn();};}
   $("notice").hidden=false; Sound.setMode("menu");
 }
-$("noticeBtn").onclick=()=>{Sound.click(); goHome();};
+let toastT=0;
+function toast(text){const t=$("toast"); t.textContent=text; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),3200);}
 $("menuBtn").onclick=()=>{Sound.click(); openPause(false);};
 $("resumeBtn").onclick=()=>{Sound.click(); closePause();};
 $("quitBtn").onclick=()=>{Sound.click(); if(pauseStep==="menu"){pauseStep="confirm"; renderPause();} else goHome();};
@@ -1675,9 +1692,20 @@ function hostDrop(id){
   if(state==="lobby"){hostSendLobby(); return;}
   if(Net.phase==="setup"){hostAfterPick(); if(Net.roster.length<2){Net.phase="lobby"; openLobby(); hostSendLobby();} return;}
   const pl=players.find(p=>p.peer===id);
-  if(pl){pl.left=true; pl.name=pl.name.replace(/ \(left\)$/,"")+" (left)";
-    if(pl.alive&&state==="play") pl.forceOut=true;  // simStep removes them like a crash
-    renderChips();}
+  if(!pl||pl.left) return;
+  const who=pl.name; pl.left=true; pl.name=who+" (left)";
+  if(pl.alive&&state==="play") pl.forceOut=true;  // simStep removes them like a crash
+  renderChips();
+  if(Net.done){toast(`${who} left the game`); return;}
+  // nobody left to play against: end it here instead of letting the host win empty rounds
+  if(players.filter(p=>!p.left).length<2){
+    const gone=players.filter(p=>p.remote), title=gone.length===1?`${who} left the game`:"Everyone else left";
+    openNotice("Match ended",title,"There's no one left to play against. Your game code still works, so friends can join again from the lobby.",
+      {main:{text:"Back to lobby",fn:()=>{openLobby(); hostSendLobby();}},alt:{text:"Home",fn:goHome}});
+    return;
+  }
+  toast(`${who} left the game`);
+  broadcast({t:"left",i:pl.i});
 }
 function hostSendLobby(){Net.phase="lobby"; Net.roster.forEach(r=>r.ready=false); broadcast({t:"lobby",code:Net.code,roster:Net.roster}); if(state==="lobby") renderLobby();}
 function hostStartMatch(){
@@ -1760,6 +1788,7 @@ function clientData(d){
       if(state==="select") renderReady(); else openSetup(); break;
     case "rr": if(Array.isArray(d.ids)){Net.rr=new Set(d.ids.map(String)); panelReady();} break;
     case "bye": hostGone(); break;
+    case "left": {const pl=players[d.i]; if(pl&&!pl.left){toast(`${pl.name} left the game`); pl.left=true; pl.name+=" (left)"; renderChips();} break;}
     case "full": netFail("That game is full."); break;
     case "busy": netFail("That game has already started."); break;
     case "match": Net.phase="match"; if(Array.isArray(d.players)) beginMatch(d.players.slice(0,4).map(x=>({ch:charById(x.char),name:cleanName(x.name),
