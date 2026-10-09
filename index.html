@@ -110,7 +110,8 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .move{font-size:11px;margin-left:6px;font-variant-numeric:tabular-nums}
 .move.up{color:var(--up)} .move.down{color:var(--down)}
 .chip.me{border-color:var(--me,var(--you))}
-.tools{display:flex;gap:6px;pointer-events:auto}
+.tools{display:flex;gap:6px;pointer-events:auto;position:relative;z-index:6}
+#pause{z-index:7}
 .iconBtn{display:flex;align-items:center;justify-content:center;width:36px;height:31px;padding:0;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:999px}
 .iconBtn svg{width:18px;height:18px}
 .iconBtn[aria-pressed="false"]{color:var(--muted)}
@@ -190,6 +191,11 @@ h1{font-size:44px}
 .stats dd{margin:0;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
 #charStats{width:100%;max-width:300px;align-self:center;flex:none}
 #charSel .field input{padding-block:9px}
+#charSel{padding-bottom:calc(env(safe-area-inset-bottom,0px) + 16px)}
+#charSel .row{position:relative;z-index:2;transition:transform .25s cubic-bezier(.2,.8,.2,1)}
+#charSel .row::before{content:"";position:absolute;inset:-12px -12px -10px;border-radius:20px;background:var(--card-solid);
+  box-shadow:0 -12px 28px rgba(0,0,0,.5);opacity:0;transition:opacity .2s;z-index:-1;pointer-events:none}
+#charSel .row.lifted::before{opacity:1}
 #charSel .row,#charSel .dots,#charSel .readyRow,#charSel .oppRow,#charSel .field{flex:none}
 #charStats dd{display:block}
 .portrait img{pointer-events:none;-webkit-user-drag:none;user-select:none}
@@ -241,14 +247,18 @@ input::placeholder{color:var(--muted);opacity:.6}
 .readyRow .rp i{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-style:normal;font-size:10px;line-height:1}
 .readyRow .rp.on{color:var(--ink);border-color:rgba(127,227,154,.6)}
 .readyRow .rp.on i{background:var(--up);border-color:var(--up);color:#0c1124}
-#charGo.isReady{background:var(--up);color:#0c1124;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+#charGo.isReady,#readyBtn.isReady{background:var(--up);color:#0c1124;box-shadow:0 4px 0 rgba(0,0,0,.35)}
+.btn.waiting{animation:btnWait 1.6s ease-in-out infinite}
+#readyBtn.waiting{pointer-events:none}
+@keyframes btnWait{50%{opacity:.62}}
+#charSel .row #charBack{flex:0 0 auto;padding-inline:20px}
 #results li.rdy .nm::after{content:"✓";margin-left:6px;color:var(--up)}
 .oppRow{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .oppRow .seg{flex:0 0 auto;width:min(180px,55%)}
 .oppRow .seg button{padding-block:8px}
 .lobbyList .chg{font:800 12px var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink);background:transparent;
   border:1px solid var(--line);border-radius:999px;padding:6px 10px}
-@media (prefers-reduced-motion:reduce){.chip{transition:none}#boostBar.ready,.pulse,.dotPulse::before,#msgBig.cheer,h2.champTitle,.champ .rays,.champFig,.champCrown,.lgWordmark>g,.lgPlanet,.logo .rings path,.lgStars path{animation:none}}
+@media (prefers-reduced-motion:reduce){.btn.waiting{animation:none}.chip{transition:none}#boostBar.ready,.pulse,.dotPulse::before,#msgBig.cheer,h2.champTitle,.champ .rays,.champFig,.champCrown,.lgWordmark>g,.lgPlanet,.logo .rings path,.lgStars path{animation:none}}
 </style>
 
 </head>
@@ -1161,7 +1171,7 @@ function openCharSel(){
   charSel.hidden=false; renderStrip();
   const setup=mode==="online"&&!!Net.role;
   $("oppRow").hidden=mode!=="cpu"; $("nameField").hidden=!setup; $("readyRow").hidden=!setup;
-  $("charGo").classList.remove("isReady"); $("charGo").textContent=setup?"Ready":"Play"; $("charBack").textContent=setup?"Leave":"Back";
+  $("charGo").classList.remove("isReady","waiting"); $("charGo").textContent=setup?"Ready":"Play"; $("charBack").textContent=setup?"Leave":"Back";
   if(setup) renderReady();
   requestAnimationFrame(()=>requestAnimationFrame(applyChar));
 }
@@ -1276,8 +1286,8 @@ function showPanel(){
   if(Net.role&&!matchOver){
     Net.rr=new Set(); Net.rrOrder=standingOrder(players); Net.rrDeadline=performance.now()+RR_SECS*1000;
     pb.innerHTML='<button class="btn" id="readyBtn" type="button">Ready</button>';
-    pb.insertAdjacentHTML("beforebegin",'<p class="waitPill pulse" id="rrStatus" role="status"></p>');
-    $("readyBtn").onclick=()=>{Sound.click(); pressRoundReady();};
+    pb.insertAdjacentHTML("beforebegin",'<p class="waitPill" id="rrStatus" role="status"></p>');
+    $("readyBtn").onclick=e=>{if(e.currentTarget.classList.contains("waiting")) return; Sound.click(); pressRoundReady();};
     panelReady();
   } else if(Net.role==="client"){
     pb.innerHTML='<button class="btn ghost" id="toMenu" type="button">Leave</button><div class="waitPill pulse">Waiting for the host</div>';
@@ -1352,7 +1362,7 @@ $("onlineBtn").onclick=()=>{Sound.init();Sound.click();mode="online";openOnline(
 $("charGo").onclick=()=>{Sound.click();
   if(mode!=="online"){startMatch(); return;}
   if(!Net.role){openOnline(); return;}
-  myReady=!myReady; clearTimeout(pickTimer); sendPick(); renderReady();};
+  $("nick").blur(); myReady=!myReady; clearTimeout(pickTimer); sendPick(); renderReady();};
 $("charBack").onclick=()=>{Sound.click(); if(mode==="online"&&Net.role){leaveOnline(); toMenu();} else if(mode==="online") openOnline(); else toMenu();};
 // ---------- Navigation: home outside a match, pause menu inside one ----------
 let paused=false;
@@ -1402,8 +1412,13 @@ soundBtns.forEach(b=>b.onclick=()=>{Sound.init();const on=!(Sound.music||Sound.s
 syncSoundUI();
 (function(){
   const vv=window.visualViewport, app=$("app"); if(!vv) return;
+  const row=document.querySelector("#charSel .row"); let lift=0;
   const upd=()=>{const kb=Math.max(0,Math.round(window.innerHeight-vv.height-vv.offsetTop)); app.style.setProperty("--kb",(kb>80?kb:0)+"px");
-    if(window.scrollY) window.scrollTo(0,0);};
+    if(window.scrollY) window.scrollTo(0,0);
+    // character card: keep the layout still and just float Leave/Ready above the keyboard
+    let want=0;
+    if(kb>80&&!charSel.hidden){const bottom=row.getBoundingClientRect().bottom-lift; want=Math.min(0,Math.round(vv.offsetTop+vv.height-16-bottom));}
+    if(want!==lift){lift=want; row.style.transform=lift?`translateY(${lift}px)`:""; row.classList.toggle("lifted",lift<0);}};
   vv.addEventListener("resize",upd); vv.addEventListener("scroll",upd);
 })();
 ["pointerdown","touchend","click","keydown"].forEach(ev=>document.addEventListener(ev,()=>Sound.init(),true));
@@ -1450,9 +1465,11 @@ function rosterColors(list){const seen={}; return list.map(r=>{const k=seen[r.ch
 function broadcast(msg){for(const c of Net.conns.values()) if(c.open){try{c.send(msg);}catch(_){}}}
 function toHost(msg){const c=Net.hostConn; if(c&&c.open){try{c.send(msg);}catch(_){}}}
 
-function leaveOnline(){
+function sayBye(){if(Net.role==="host") broadcast({t:"bye"}); else if(Net.role==="client") toHost({t:"bye"});}
+function leaveOnline(quiet){
   clearTimeout(Net.timer);
-  try{Net.peer&&Net.peer.destroy();}catch(_){}
+  if(!quiet) sayBye();
+  const peer=Net.peer; if(peer) setTimeout(()=>{try{peer.destroy();}catch(_){}},300); // let the goodbye get out first
   Object.assign(Net,{uconns:new Map(),uConn:null,snaps:[],evq:[],off:null,role:null,peer:null,conns:new Map(),hostConn:null,code:"",myId:null,roster:[],inMatch:false});
 }
 function setOnlineStatus(t,isErr){["onlineStatus","joinStatus"].forEach(id=>{const el=$(id); el.textContent=t||""; el.classList.toggle("err",!!isErr);});}
@@ -1528,7 +1545,8 @@ function renderReady(){
   const row=$("readyRow"), n=Net.roster.filter(r=>r.ready).length;
   row.innerHTML=Net.roster.map(r=>`<span class="rp${r.ready?" on":""}"><i>${r.ready?"✓":""}</i>${esc(r.id===Net.myId?"You":r.name)}</span>`).join("");
   const go=$("charGo"); go.classList.toggle("isReady",myReady);
-  go.textContent=myReady?(n<Net.roster.length?`Ready ✓ · ${n}/${Net.roster.length}`:"Starting…"):"Ready";
+  const miss=Net.roster.length-n; go.classList.toggle("waiting",myReady);
+  go.textContent=myReady?(miss>0?`Waiting for ${miss} more`:"Starting…"):"Ready";
 }
 function sendPick(){
   if(Net.role==="client") toHost({t:"pick",name:myName(),char:selChar,ready:myReady});
@@ -1555,7 +1573,7 @@ function panelReady(){
   [...$("results").children].forEach((li,k)=>{const pl=Net.rrOrder&&Net.rrOrder[k]; li.classList.toggle("rdy",!!(pl&&Net.rr.has(pl.peer)));});
 }
 function pressRoundReady(){
-  const b=$("readyBtn"); if(b){b.disabled=true; b.textContent="Ready ✓";}
+  const b=$("readyBtn"); if(b){b.classList.add("isReady","waiting"); b.setAttribute("aria-disabled","true"); b.textContent="Waiting for other players…";}
   if(Net.role==="client") toHost({t:"rready"});
   else {Net.rr.add(Net.myId); broadcast({t:"rr",ids:[...Net.rr]}); panelReady();}
 }
@@ -1608,6 +1626,7 @@ function hostData(conn,d){
     if(String(d.name||"").trim()) r.name=cleanName(d.name);
     r.char=charById(d.char).id; r.ready=!!d.ready; hostAfterPick(); return;
   }
+  if(d.t==="bye"){hostDrop(conn.peer); try{conn.close();}catch(_){} return;}
   if(d.t==="rready"){ if(state==="panel"&&Net.rrDeadline){Net.rr.add(conn.peer); broadcast({t:"rr",ids:[...Net.rr]}); panelReady();} return; }
   if(d.t==="st"||d.t==="tp"||d.t==="die"){
     const pl=players.find(p=>p.peer===conn.peer); if(!pl||d.r!==round||!Number.isFinite(d.T)) return;
@@ -1623,6 +1642,7 @@ function hostData(conn,d){
   }
 }
 function hostDrop(id){
+  if(Net.role!=="host"||!Net.conns.has(id)) return;
   Net.conns.delete(id);
   const k=Net.roster.findIndex(r=>r.id===id); if(k>0) Net.roster.splice(k,1);
   if(state==="lobby"){hostSendLobby(); return;}
@@ -1700,7 +1720,9 @@ function clientJoin(code){
 function readRoster(a){return Array.isArray(a)?a.slice(0,4).map(r=>({id:String(r.id),name:cleanName(r.name),char:charById(r.char).id,ready:!!r.ready})):[];}
 function hostGone(){
   if(Net.role!=="client") return;
-  leaveOnline(); openNotice("Match ended","The host left the game","The match can't continue without the host.");
+  const early=Net.phase!=="match"; leaveOnline(true);
+  if(early) openNotice("Game closed","The host left","The host closed this game before it started.");
+  else openNotice("Match ended","The host left the game","The match can't continue without the host.");
 }
 function clientData(d){
   if(!d||typeof d!=="object") return;
@@ -1710,6 +1732,7 @@ function clientData(d){
     case "setup": Net.phase="setup"; Net.roster=readRoster(d.roster);
       if(state==="select") renderReady(); else openSetup(); break;
     case "rr": if(Array.isArray(d.ids)){Net.rr=new Set(d.ids.map(String)); panelReady();} break;
+    case "bye": hostGone(); break;
     case "full": netFail("That game is full."); break;
     case "busy": netFail("That game has already started."); break;
     case "match": Net.phase="match"; if(Array.isArray(d.players)) beginMatch(d.players.slice(0,4).map(x=>({ch:charById(x.char),name:cleanName(x.name),
@@ -1858,6 +1881,7 @@ $("shareBtn").onclick=async()=>{
   try{await navigator.clipboard.writeText(url); $("lobbyStatus").textContent="Invite link copied";}catch(_){ $("lobbyStatus").textContent=url; }
 };
 
+window.addEventListener("pagehide",()=>{if(Net.role) sayBye();});
 if(pendingCode){mode="online"; setTimeout(()=>{Sound.init(); openOnline();},0);}
 
 
