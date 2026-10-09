@@ -110,6 +110,14 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 .move{font-size:11px;margin-left:6px;font-variant-numeric:tabular-nums}
 .move.up{color:var(--up)} .move.down{color:var(--down)}
 .chip.me{border-color:var(--me,var(--you))}
+/* match winner: gold frame, a slow glow and a light sweep, crown pops in once the totals have counted up */
+#results li.win{position:relative;overflow:hidden;border-color:#ffd23f;background:rgba(255,210,63,.07);animation:winGlow 2.4s ease-in-out .9s infinite}
+@keyframes winGlow{50%{box-shadow:0 0 18px rgba(255,210,63,.35),inset 0 0 14px rgba(255,210,63,.12)}}
+#results li.win::after{content:"";position:absolute;inset:0;pointer-events:none;transform:translateX(-100%);
+  background:linear-gradient(105deg,transparent 35%,rgba(255,240,190,.3) 50%,transparent 65%);animation:winShine 2.4s ease-in-out .9s infinite}
+@keyframes winShine{0%{transform:translateX(-100%)}45%,100%{transform:translateX(100%)}}
+#results li.win .crown{display:inline-block;animation:crownPop .55s cubic-bezier(.2,1.8,.4,1) .9s both}
+@keyframes crownPop{from{transform:scale(0) rotate(-25deg);opacity:0}}
 .tools{display:flex;gap:6px;pointer-events:auto;position:relative;z-index:6}
 #pause{z-index:7}
 .iconBtn{display:flex;align-items:center;justify-content:center;width:36px;height:31px;padding:0;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:999px}
@@ -258,7 +266,7 @@ input::placeholder{color:var(--muted);opacity:.6}
 .oppRow .seg button{padding-block:8px}
 .lobbyList .chg{font:800 12px var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--ink);background:transparent;
   border:1px solid var(--line);border-radius:999px;padding:6px 10px}
-@media (prefers-reduced-motion:reduce){.btn.waiting{animation:none}.chip{transition:none}#boostBar.ready,.pulse,.dotPulse::before,#msgBig.cheer,h2.champTitle,.champ .rays,.champFig,.champCrown,.lgWordmark>g,.lgPlanet,.logo .rings path,.lgStars path{animation:none}}
+@media (prefers-reduced-motion:reduce){#results li.win,#results li.win::after,#results li.win .crown{animation:none}.btn.waiting{animation:none}.chip{transition:none}#boostBar.ready,.pulse,.dotPulse::before,#msgBig.cheer,h2.champTitle,.champ .rays,.champFig,.champCrown,.lgWordmark>g,.lgPlanet,.logo .rings path,.lgStars path{animation:none}}
 </style>
 
 </head>
@@ -405,8 +413,6 @@ input::placeholder{color:var(--muted);opacity:.6}
 
   <section id="panel" class="sheet" hidden>
     <div class="card">
-      <div id="champ" class="champ" hidden><div class="rays"></div>
-        <div class="champFig"><svg class="champCrown" viewBox="0 0 24 16" aria-hidden="true"><path d="M2 14h20l-1.6-10-5.2 4.6L12 1.5 8.8 8.6 3.6 4z" fill="#ffd23f"/></svg><img id="champImg" alt=""></div></div>
       <div class="label" id="panelLabel">Round 1</div>
       <h2 id="panelTitle"></h2>
       <ol id="results"></ol>
@@ -486,7 +492,7 @@ const Sound=(function(){
     return b;
   }
   function init(){
-    if(ctx){ if(ctx.state!=="running") ctx.resume().catch(()=>{}); return; }
+    if(ctx){ if(ctx.state!=="running") ctx.resume().catch(()=>{}); if(!document.hidden&&master.gain.value<0.01) wake(); return; }
     const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
     try{ if(navigator.audioSession) navigator.audioSession.type="playback"; }catch(_){}
     try{ ctx=new AC(); }catch(_){ return; }
@@ -513,7 +519,24 @@ const Sound=(function(){
     applyMode(true);
     nextT=ctx.currentTime+0.1;
     setInterval(schedule,25);
-    document.addEventListener("visibilitychange",()=>{ if(document.hidden) ctx.suspend().catch(()=>{}); else ctx.resume().catch(()=>{}); });
+    document.addEventListener("visibilitychange",()=>{ if(document.hidden) sleep(); else wake(); });
+    window.addEventListener("pagehide",sleep); window.addEventListener("pageshow",()=>{ if(!document.hidden) wake(); });
+  }
+  // Leaving the app: fade everything out quickly *before* pausing the audio engine, so no note,
+  // echo or reverb tail is chopped off mid-sound (that cut is what made the odd thump on close).
+  let sleepT=0, asleep=false;
+  function sleep(){
+    if(!ctx||asleep) return; asleep=true;
+    const t=ctx.currentTime, g=master.gain;
+    g.cancelScheduledValues(t); g.setValueAtTime(g.value,t); g.linearRampToValueAtTime(0,t+0.05);
+    clearTimeout(sleepT); sleepT=setTimeout(()=>{ if(asleep) ctx.suspend().catch(()=>{}); },140);
+  }
+  function wake(){
+    if(!ctx) return; asleep=false; clearTimeout(sleepT);
+    if(ctx.state!=="running") ctx.resume().catch(()=>{});
+    const t=ctx.currentTime, g=master.gain;
+    g.cancelScheduledValues(t); g.setValueAtTime(0,t); g.linearRampToValueAtTime(0.85,t+0.4);
+    nextT=t+0.05;
   }
 
   // ----- building blocks -----
@@ -580,10 +603,16 @@ const Sound=(function(){
     else if(res===-1) notes([76,72,69,64],{gap:0.15,dur:0.6,g:0.1});
     else notes([69,72,69],{gap:0.14,dur:0.5,g:0.1});
   }
-  function matchEnd(won){ if(!ready()) return;
-    if(won){ notes([69,73,76,81,85,88],{gap:0.09,g:0.11}); notes([81,85,88,93],{gap:0.015,dur:1.8,g:0.09,at:0.56});
-      for(let i=0;i<10;i++) osc({f:2000+Math.random()*3000,t:ctx.currentTime+0.6+Math.random()*1.1,dur:0.2,g:0.025}); }
-    else notes([69,68,67,64],{gap:0.22,dur:0.8,g:0.1,type:"sine"});
+  function bell(m,t,g,dur){ const f=mtof(m);
+    osc({f,t,dur,g,a:0.003}); osc({f:f*2,t,dur:dur*0.5,g:g*0.3,a:0.002}); osc({f:f*3.01,t,dur:dur*0.25,g:g*0.1,a:0.002}); }
+  function sparkle(t0,n,spread,g){ const P=[84,86,88,91,93,96,98,100];
+    for(let i=0;i<n;i++){ const t=t0+Math.random()*spread, f=mtof(P[(Math.random()*P.length)|0]), d=out((Math.random()*2-1)*0.7);
+      osc({f,t,dur:0.35,g,a:0.002,dest:d}); osc({f:f*2.01,t,dur:0.12,g:g*0.35,a:0.001,dest:d}); } }
+  function matchEnd(won){ if(!ready()) return; const t=ctx.currentTime+0.02;
+    (won?[72,76,79,84]:[67,72,76,79]).forEach((m,i)=>bell(m,t+i*0.08,0.085,1.4));
+    bell(won?88:84,t+0.34,0.065,2.2);
+    sparkle(t+0.22,won?18:11,1.3,won?0.03:0.022);
+    noise({t:t+0.2,dur:1.5,g:0.022,type:"highpass",f:8000,a:0.3});
   }
   function tally(){ if(!ready()) return; const t=ctx.currentTime;
     [76,79,83,88].forEach((m,i)=>osc({type:"triangle",f:mtof(m),t:t+i*0.07,dur:0.16,g:0.05,lp:5000})); }
@@ -1263,15 +1292,13 @@ function showPanel(){
   const title=$("panelTitle");
   title.textContent=matchOver?(leaders[0].human?"You win the match!":`${leaders[0].name} wins the match!`)
     :(winners.length!==1?"Draw":winners[0].human?"You won the round":`${winners[0].name} won the round`);
-  const champ=$("champ"); champ.hidden=!matchOver;
-  if(matchOver){$("champImg").src=leaders[0].ch.img||""; champ.style.setProperty("--cbg",rgba(leaders[0].color,0.28));}
   title.classList.toggle("champTitle",matchOver); title.style.color=matchOver?hexc(leaders[0].color):"";
   const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
   // rows in overall standing; totals start at the old value and count up
   const ol=$("results"); ol.innerHTML="";
   for(const pl of standingOrder(players)){
     const gain=pointsFor(pl.rank), li=document.createElement("li"), d=pl.prevPos-pl.pos;
-    if(pl.human) li.className="me";
+    if(pl.human) li.classList.add("me"); if(matchOver&&pl===leaders[0]) li.classList.add("win");
     const mv=round>1&&d>0?`<span class="move up">▲${d}</span>`:round>1&&d<0?`<span class="move down">▼${-d}</span>`:"";
     li.innerHTML=`<span class="rk">${pl.pos}.</span><span class="dot" style="background:${hexc(pl.color)}"></span>
       <span class="nm">${matchOver&&pl===leaders[0]?CROWN:""}${esc(pl.name)}${mv}</span><span class="plus">+${gain}</span><span class="tot">${reduce?pl.score:pl.score-gain}</span>
@@ -1296,13 +1323,13 @@ function showPanel(){
     pb.innerHTML='<button class="btn ghost" id="toMenu" type="button">Leave</button><button class="btn" id="again" type="button">Lobby</button>';
     $("toMenu").onclick=()=>{leaveOnline();toMenu();}; $("again").onclick=()=>{Sound.click(); openLobby(); hostSendLobby();};
   } else {
-    pb.innerHTML=matchOver?'<button class="btn ghost" id="toMenu" type="button">Menu</button><button class="btn" id="again" type="button">New match</button>'
+    pb.innerHTML=matchOver?'<button class="btn ghost" id="toMenu" type="button">Home</button><button class="btn" id="again" type="button">New match</button>'
       :'<button class="btn" id="nextBtn" type="button">Next round</button>';
     if(matchOver){$("toMenu").onclick=toMenu;$("again").onclick=()=>{Sound.click();openCharSel();};}
     else $("nextBtn").onclick=()=>{Sound.click();startRound();};
   }
   panel.hidden=false; state="panel"; boostBar.hidden=true; hud.hidden=matchOver; roundTag.hidden=matchOver;
-  if(matchOver){Sound.matchEnd(leaders[0].human); if(!reduce) startRain(leaders[0].color);}
+  if(matchOver){const won=leaders[0].human; setTimeout(()=>{if(state==="panel") Sound.matchEnd(won);},reduce?0:900);}
 }
 function countUp(el,from,to){
   const t0=performance.now(), tick=now=>{const k=Math.min(1,(now-t0)/600);
