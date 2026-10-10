@@ -74,7 +74,8 @@ body{background:var(--space);color:var(--ink);font-family:var(--font-body);overf
   box-sizing:border-box;padding:8px 14px;border-radius:999px;background:var(--panel);border:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   font-weight:800;font-size:14px;color:var(--muted);pointer-events:none}
 #specTag b{font-weight:800}
-#msg.compact #msgBig,#msg.compact #msgSmall{display:none}
+#msgBig,#msgSmall{transition:opacity .4s}
+#msg.compact #msgBig,#msg.compact #msgSmall{opacity:0}
 #roundTag{position:absolute;left:0;right:0;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);text-align:center;
   font-weight:800;font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);pointer-events:none}
 
@@ -154,7 +155,7 @@ button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
 @keyframes winSheen{0%{transform:translateX(-120%)}40%,100%{transform:translateX(120%)}}
 #results li.win .crown{display:inline-block;animation:crownPop .55s cubic-bezier(.2,1.8,.4,1) both}
 @keyframes crownPop{from{transform:scale(0) rotate(-25deg);opacity:0}}
-.tools{display:flex;gap:6px;pointer-events:auto;position:relative;z-index:6}
+.tools{display:flex;gap:6px;pointer-events:auto;position:relative;z-index:8}
 #pause{z-index:7}
 .iconBtn{display:flex;align-items:center;justify-content:center;width:36px;height:31px;padding:0;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:999px}
 .iconBtn svg{width:18px;height:18px}
@@ -199,8 +200,8 @@ h1{font-size:44px}
 .lgStars path{animation:lgTw 2.4s ease-in-out infinite;transform-box:fill-box;transform-origin:center}
 .lgStars path:nth-child(2){animation-delay:.8s}.lgStars path:nth-child(3){animation-delay:1.6s}
 @keyframes lgTw{50%{opacity:.3;transform:scale(.6)}}
-#homeBtn{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:16px;z-index:5}
-#globalSound{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:16px;z-index:5}
+#homeBtn{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);left:16px;z-index:8}
+#globalSound{position:absolute;top:calc(env(safe-area-inset-top,0px) + 10px);right:16px;z-index:8}
 #charSel .card{align-self:stretch;height:auto;max-height:760px;overflow:hidden;gap:12px;box-sizing:border-box}
 .carousel{position:relative;margin-inline:-20px;display:flex;flex:1 1 auto;min-height:0}
 .track{flex:1;min-width:0;overflow:hidden;touch-action:none;cursor:grab}
@@ -488,8 +489,8 @@ input::placeholder{color:var(--muted);opacity:.6}
 "use strict";
 // ---------- Tuning ----------
 const R0 = 10;                      // reference size: speed and camera distance are tuned for this
-const R = 8.8;                      // globe radius (a smaller, busier planet)
-const LAP = 8.2;                    // seconds per lap on the reference planet
+const R = 8.0;                      // globe radius (a small, busy planet)
+const LAP = 8.9;                    // seconds per lap on the reference planet (sets the running speed)
 const SPEED = 2*Math.PI*R0/LAP;
 const TURN = 9.0;                   // rad/s max turn (U-turn ≈ 0.35 s)
 const TR = 0.30;                    // tube radius
@@ -788,6 +789,7 @@ function gridAdd(code,x,y,z){const k=cellKey(Math.floor(x/CELL),Math.floor(y/CEL
   let a=grid.get(k); if(!a){a=[];grid.set(k,a);} a.push(code);}
 
 // ---------- Trail (growing tube) ----------
+const capGeo=new THREE.SphereGeometry(TR,12,8);
 class Trail{
   constructor(color){
     this.pts=new Float32Array(MAXP*3); this.n=0; this.dirty=0;
@@ -795,7 +797,9 @@ class Trail{
     const idx=new Uint16Array((MAXP-1)*SEG*6); let o=0;
     for(let i=0;i<MAXP-1;i++)for(let k=0;k<SEG;k++){
       const a=i*SEG+k, b=i*SEG+(k+1)%SEG, c=a+SEG, d=b+SEG;
-      idx[o++]=a;idx[o++]=c;idx[o++]=b; idx[o++]=b;idx[o++]=c;idx[o++]=d;}
+      // outward-facing winding: the near wall of the tube is the one that gets drawn (it used to be the far wall,
+      // which let things inside the tube, like your ring, show through the top)
+      idx[o++]=a;idx[o++]=b;idx[o++]=c; idx[o++]=b;idx[o++]=d;idx[o++]=c;}
     const g=new THREE.BufferGeometry();
     this.pa=new THREE.BufferAttribute(this.pos,3); this.pa.setUsage(THREE.DynamicDrawUsage);
     this.na=new THREE.BufferAttribute(this.nor,3); this.na.setUsage(THREE.DynamicDrawUsage);
@@ -804,8 +808,9 @@ class Trail{
     const col=new THREE.Color(color);
     this.mesh=new THREE.Mesh(g,new THREE.MeshStandardMaterial({color:col,roughness:0.42,metalness:0.05,emissive:col.clone().multiplyScalar(0.3)}));
     this.mesh.frustumCulled=false; scene.add(this.mesh);
+    this.caps=[0,1].map(()=>{const c=new THREE.Mesh(capGeo,this.mesh.material); c.visible=false; this.mesh.add(c); return c;});
   }
-  reset(){this.n=0;this.dirty=0;this.geo.setDrawRange(0,0);}
+  reset(){this.n=0;this.dirty=0;this.geo.setDrawRange(0,0); this.caps.forEach(c=>c.visible=false);}
   add(x,y,z,hx,hy,hz,code){
     if(this.n>=MAXP) return;
     const i=this.n, P=this.pts; P[i*3]=x;P[i*3+1]=y;P[i*3+2]=z;
@@ -829,6 +834,8 @@ class Trail{
     this.pa.updateRange.offset=off; this.pa.updateRange.count=cnt; this.pa.needsUpdate=true;
     this.na.updateRange.offset=off; this.na.updateRange.count=cnt; this.na.needsUpdate=true;
     this.geo.setDrawRange(0,Math.max(0,this.n-1)*SEG*6); this.dirty=this.n;
+    const P=this.pts, [tail,head]=this.caps, k=(this.n-1)*3;
+    tail.position.set(P[0],P[1],P[2]); head.position.set(P[k],P[k+1],P[k+2]); tail.visible=head.visible=this.n>=2;
   }
 }
 
@@ -845,7 +852,8 @@ const CHARS=[
 const BOOST_BASE=9;      // seconds to fill the boost meter at stat 3
 const BOOST_T=0.45;      // push duration
 const BOOST_PEAK=1.4;
-const HOVER_BASE=0.45, HOVER_STEP=0.125;  // seconds of hover at stat 3, and per stat point (0.2 s … 0.7 s)    // extra speed at the start of the push (2.4× total)
+const HOVER_BASE=0.45, HOVER_STEP=0.125;
+const FLUTTER_RECHARGE=2.5, FLUTTER_DELAY=0.2; // seconds from empty to full (same for everyone), pause before it refills  // seconds of hover at stat 3, and per stat point (0.2 s … 0.7 s)    // extra speed at the start of the push (2.4× total)
 const hexc=c=>"#"+c.toString(16).padStart(6,"0");
 const rgba=(c,a)=>`rgba(${c>>16&255},${c>>8&255},${c&255},${a})`;
 
@@ -882,9 +890,14 @@ function makeFigure(ch,human,parent,colorOverride){
     case "puff": [[0,0.23,0,0.11],[-0.11,0.19,0.02,0.08],[0.11,0.19,-0.02,0.085],[0,0.18,-0.11,0.08]].forEach(([x,y,z,r])=>{
       const s=new THREE.Mesh(new THREE.SphereGeometry(r,12,8),mat2); s.position.set(x,y,z); top.add(s);}); break;
   }
-  if(human){const ring=new THREE.Mesh(new THREE.RingGeometry(0.42,0.56,32),
-      new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.7,side:THREE.DoubleSide,depthWrite:false}));
-    ring.rotation.x=-Math.PI/2; ring.position.y=0.03; g.add(ring); g.userData.ring=ring;}
+  if(human){ // the ring under your runner doubles as the flutter gauge
+    const ring=new THREE.Group(); ring.position.y=0.03;
+    const track=new THREE.Mesh(new THREE.RingGeometry(0.44,0.62,96),
+      new THREE.MeshBasicMaterial({color:0xdfe6ff,transparent:true,opacity:0.12,side:THREE.DoubleSide,depthWrite:false}));
+    const fillGeo=new THREE.RingGeometry(0.44,0.62,240,1,-Math.PI/2,Math.PI*2);  // fills from the front of the runner
+    const fill=new THREE.Mesh(fillGeo,new THREE.MeshBasicMaterial({color:0xdfe6ff,transparent:true,opacity:0.5,side:THREE.DoubleSide,depthWrite:false}));
+    track.rotation.x=fill.rotation.x=-Math.PI/2; fill.position.y=0.002;
+    ring.add(track,fill); g.add(ring); g.userData.ring=ring; g.userData.ringFill=fill; g.userData.ringSegs=240;}
   { // hover wings (shown only while hovering): two glowing wings that flap fast, seen well from the chase camera
     const hp=new THREE.Group(), wm=new THREE.MeshBasicMaterial({color:col.clone().lerp(new THREE.Color(0xffffff),0.55),transparent:true,opacity:0.9,side:THREE.DoubleSide,depthWrite:false});
     const wg=new THREE.CircleGeometry(0.3,20), wings=[];
@@ -987,7 +1000,7 @@ function makePlayers(list){
   players=list.map((e,i)=>{const ch=e.ch, col=e.color!=null?e.color:ch.color, local=e.kind==="local";
     return {i,ch,name:local?"You":(e.name||ch.name),color:col,human:local,remote:e.kind==="remote",peer:e.peer||null,score:0,
     speed:SPEED*(1+(ch.fart-3)*0.06), turn:TURN*(1+(ch.smid-3)*0.12), charge:BOOST_BASE*(1-(ch.boost-3)*0.15),
-    hoverMax:HOVER_BASE+(ch.hov-3)*HOVER_STEP, hoverLeft:0, hovering:false, botHover:false, puffT:0,
+    hoverMax:HOVER_BASE+(ch.hov-3)*HOVER_STEP, fl:1, flWait:0, flFull:true, hovering:false, botHover:false, puffT:0,
     boost:0,bt:-1,streakT:0,netT:new THREE.Vector3(),netHas:false,netJ:0,netB:0,left:false,forceOut:false,np:null,nh:null,ny:0,sb:[],pq:[],log:[],off:null,dieT:null,
     p:new THREE.Vector3(),h:new THREE.Vector3(),y:0,jt:-1,cool:0,acc:0,alive:true,rank:0,
     turnCmd:0,think:0,jumpBuf:0,stride:0,stepN:0,trail:new Trail(col),fig:makeFigure(ch,local,null,col)};});
@@ -1032,7 +1045,7 @@ function advance(p,h,dist,extra){
 const sp=new THREE.Vector3(), sh=new THREE.Vector3();
 function probe(b,k,jump,hov){
   sp.copy(b.p); sh.copy(b.h);
-  let jt=b.jt, t=0, hl=hov?b.hoverMax:0; const dt=0.06, H=2.0, lim=b.trail.n-1-GRACE;
+  let jt=b.jt, t=0, hl=hov?b.hoverMax*b.fl:0; const dt=0.06, H=2.0, lim=b.trail.n-1-GRACE;
   if(jump) jt=0;
   while(t<H){
     if(jt<0) sh.applyAxisAngle(sp,k*b.turn*dt);
@@ -1053,11 +1066,11 @@ function botThink(b){
     let done=false;
     for(const k of [-0.55,0,0.55]){
       const s=probe(b,k,true);
-      if(s>best+0.3 && Math.random()<0.8){b.jt=0;b.hoverLeft=b.hoverMax;b.botHover=false;b.turnCmd=k;onJump(b);done=true;break;}
+      if(s>best+0.3 && Math.random()<0.8){b.jt=0;b.botHover=false;b.turnCmd=k;onJump(b);done=true;break;}
     }
-    if(!done) for(const k of [-0.55,0,0.55]){
+    if(!done&&b.fl>0.35) for(const k of [-0.55,0,0.55]){
       const s=probe(b,k,true,true);
-      if(s>best+0.3 && Math.random()<0.75){b.jt=0;b.hoverLeft=b.hoverMax;b.botHover=true;b.turnCmd=k;onJump(b);break;}
+      if(s>best+0.3 && Math.random()<0.75){b.jt=0;b.botHover=true;b.turnCmd=k;onJump(b);break;}
     }
   }
   if(b.boost>=1 && b.bt<0 && best>=2 && Math.random()<0.12) useBoost(b);
@@ -1181,7 +1194,7 @@ function stepPlayer(pl,dt){
     assist(pl,dt);
     if(pl.asCmd){const a=pl.asCmd*pl.turn*dt; pl.h.applyAxisAngle(pl.p,a);
       if(pl.human&&joyAng!==null) humTarget.applyAxisAngle(pl.p,a); else if(pl.remote&&pl.netHas) pl.netT.applyAxisAngle(pl.p,a);}
-    if(pl.jumpBuf>0){pl.jumpBuf-=dt; if(pl.jt<0&&pl.cool<=0){pl.jt=0;pl.jumpBuf=0;pl.hoverLeft=pl.hoverMax;onJump(pl);}}
+    if(pl.jumpBuf>0){pl.jumpBuf-=dt; if(pl.jt<0&&pl.cool<=0){pl.jt=0;pl.jumpBuf=0;onJump(pl);}}
   } else {
     pl.think-=dt; if(pl.think<=0){pl.think=0.09+Math.random()*0.06; botThink(pl);}
     if(pl.jt<0) pl.h.applyAxisAngle(pl.p,pl.turnCmd*pl.turn*dt);
@@ -1190,15 +1203,17 @@ function stepPlayer(pl,dt){
   if(pl.jt>=0){
     const hold=pl.human?hoverHeld:pl.botHover, wasHover=pl.hovering;
     pl.hovering=false;
-    if(hold&&pl.hoverLeft>0){
+    if(hold&&pl.fl>0){
       if(pl.jt<JT/2) pl.jt=Math.min(JT/2,pl.jt+dt);
-      else {pl.hoverLeft-=dt; pl.hovering=true; if(pl.human) hoverUsed=true;
+      else {pl.fl=Math.max(0,pl.fl-dt/pl.hoverMax); pl.flWait=FLUTTER_DELAY; pl.hovering=true; if(pl.human) hoverUsed=true;
         pl.puffT-=dt; if(pl.puffT<=0){pl.puffT=0.07; puff(pl);}}
     } else pl.jt+=dt;
     if(pl.hovering&&!wasHover) onHover(pl);
     if(pl.jt>=JT){pl.jt=-1;pl.y=0;pl.cool=0.12;pl.botHover=false;onLand(pl);} else pl.y=jumpY(pl.jt);
   }
   else if(pl.cool>0) pl.cool-=dt;
+  // flutter meter: drains while fluttering, refills in FLUTTER_RECHARGE s from empty (a partly filled meter flutters for less)
+  if(!pl.hovering){ if(pl.flWait>0) pl.flWait-=dt; else if(pl.fl<1) pl.fl=Math.min(1,pl.fl+dt/FLUTTER_RECHARGE); }
   // boost: a short shove that fades out, then the meter refills
   let mul=1;
   if(pl.bt>=0){
@@ -1364,7 +1379,7 @@ function startRound(){
     tmpA.set(Math.random()-.5,Math.random()-.5,Math.random()-.5);
     pl.h.copy(tmpA).addScaledVector(pl.p,-tmpA.dot(pl.p)).normalize();
     pl.y=0;pl.jt=-1;pl.cool=0;pl.acc=0;pl.alive=true;pl.rank=0;pl.turnCmd=0;pl.think=Math.random()*0.1;pl.jumpBuf=0;pl.stride=0;pl.stepN=0;
-    pl.boost=1;pl.bt=-1;pl.netHas=false;pl.hovering=false;pl.botHover=false;pl.hoverLeft=0;pl.sb=[];pl.pq=[];pl.log=[];pl.dieT=null;pl.forceOut=!!pl.left;
+    pl.boost=1;pl.bt=-1;pl.netHas=false;pl.hovering=false;pl.botHover=false;pl.fl=1;pl.flWait=0;pl.sb=[];pl.pq=[];pl.log=[];pl.dieT=null;pl.forceOut=!!pl.left;
     pl.trail.reset(); pl.fig.visible=true; pl.sit=false;
     if(tieSet&&!tieSet.includes(pl.i)){pl.sit=true; pl.alive=false; pl.fig.visible=false;}  // sitting out the tiebreaker
     else if(!pl.remote) dropPoint(pl);
@@ -1611,10 +1626,10 @@ function openNotice(label,title,text,opts){
 }
 let toastT=0;
 function toast(text){const t=$("toast"); t.textContent=text; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),3200);}
-$("menuBtn").onclick=()=>{Sound.click(); openPause(false);};
+$("menuBtn").onclick=()=>{Sound.click(); if(!$("pause").hidden) closePause(); else openPause(false);};
 $("resumeBtn").onclick=()=>{Sound.click(); closePause();};
 $("quitBtn").onclick=()=>{Sound.click(); if(pauseStep==="menu"){pauseStep="confirm"; renderPause();} else goHome();};
-$("homeBtn").onclick=()=>{Sound.click(); if(inMatchState()) openPause(true); else goHome();};
+$("homeBtn").onclick=()=>{Sound.click(); if(!$("pause").hidden) closePause(); else if(inMatchState()) openPause(true); else goHome();};
 window.addEventListener("keydown",e=>{if(e.key==="Escape"){ if(!$("pause").hidden) closePause(); else if(state!=="menu") $("homeBtn").click(); }});
 // hardware/gesture back (Android, desktop): back = home, or the pause menu during a match
 try{history.replaceState({tp:"menu"},"");}catch(_){}
@@ -2007,7 +2022,7 @@ function clientRound(d){
   hud.hidden=false; roundTag.hidden=false;
   players.forEach((pl,i)=>{const a=d.pl&&d.pl[i]; if(!a) return;
     pl.p.set(a[0],a[1],a[2]).normalize(); pl.h.set(a[3],a[4],a[5]).normalize(); pl.sb=[]; pl.pq=[]; pl.log=[];
-    pl.y=0; pl.jt=-1; pl.bt=-1; pl.cool=0; pl.acc=0; pl.jumpBuf=0; pl.hovering=false; pl.hoverLeft=0; pl.asT=0; pl.asCmd=0; pl.boost=1; pl.alive=true; pl.rank=0; pl.stride=0; pl.stepN=0;
+    pl.y=0; pl.jt=-1; pl.bt=-1; pl.cool=0; pl.acc=0; pl.jumpBuf=0; pl.hovering=false; pl.fl=1; pl.flWait=0; pl.asT=0; pl.asCmd=0; pl.boost=1; pl.alive=true; pl.rank=0; pl.stride=0; pl.stepN=0;
     pl.trail.reset(); pl.fig.visible=true; pl.sit=false;
     if(Array.isArray(d.tb)&&!d.tb.includes(i)){pl.sit=true; pl.alive=false; pl.fig.visible=false;}});
   tieSet=Array.isArray(d.tb)?d.tb.slice():null;
@@ -2194,7 +2209,9 @@ function updateCamera(dt){
 
 // ---------- Render sync ----------
 const basis=new THREE.Matrix4(), bx=new THREE.Vector3();
+let syncLast=performance.now(), syncDt=0.016;
 function syncFigures(){
+  {const now=performance.now(); syncDt=Math.min(0.1,(now-syncLast)/1000); syncLast=now;}
   for(const pl of players){
     if(!pl.fig.visible) continue;
     bx.crossVectors(pl.p,pl.h);
@@ -2211,7 +2228,15 @@ function syncFigures(){
     const run=state==="play";
     const sw=pl.jt>=0?0.9:(run?Math.sin(pl.stride*Math.PI/STEP_LEN)*0.75:0);
     legs[0].rotation.x=pl.jt>=0?-sw:sw; legs[1].rotation.x=pl.jt>=0?-sw*0.6:-sw;
-    if(pl.fig.userData.ring) pl.fig.userData.ring.position.y=0.03-pl.y;
+    if(pl.fig.userData.ring){ const rg=pl.fig.userData.ring; rg.position.y=0.03-pl.y;
+      const fill=pl.fig.userData.ringFill, segs=pl.fig.userData.ringSegs, f=pl.fl==null?1:pl.fl;
+      pl.flShow=pl.flShow==null?f:pl.flShow+(f-pl.flShow)*Math.min(1,syncDt*14);  // glide toward the real value
+      if(Math.abs(pl.flShow-f)<0.002) pl.flShow=f;
+      fill.geometry.setDrawRange(0,Math.round(pl.flShow*segs)*6);
+      // a little pop when it's full again
+      if(f>=1&&!pl.flFull){pl.flFull=true; pl.flPop=performance.now();} else if(f<1) pl.flFull=false;
+      const pt=pl.flPop?(performance.now()-pl.flPop)/280:1, sc=pt<1?1+0.25*Math.sin(pt*Math.PI):1;
+      rg.scale.set(sc,1,sc); fill.material.opacity=f>=1?0.62:0.5;}
     const hp=pl.fig.userData.hpad, hov=pl.hovering&&state==="play";
     if(hp&&hp.visible!==hov) hp.visible=hov;
     if(hov){const t=performance.now()/1000, f=Math.sin(t*19), w=pl.fig.userData.wings;
